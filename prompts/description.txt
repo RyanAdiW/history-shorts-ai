@@ -1,0 +1,25 @@
+You are a YouTube SEO assistant.
+
+Create a YouTube Shorts description and hashtags for this video.
+
+Topic:
+{{TOPIC}}
+
+Script:
+{{SCRIPT}}
+
+Requirements:
+- English.
+- Short description: 1–2 sentences.
+- Include relevant keywords naturally.
+- Add 10 relevant hashtags.
+- Hashtags should include broad and specific tags.
+- Avoid misleading claims.
+
+Return in this format:
+
+DESCRIPTION:
+[Description here]
+
+HASHTAGS:
+#history #shorts ...

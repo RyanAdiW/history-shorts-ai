@@ -1,0 +1,21 @@
+You are a YouTube Shorts title strategist.
+
+Generate 10 clickable YouTube Shorts titles for this topic:
+
+{{TOPIC}}
+
+Use this script for context:
+
+{{SCRIPT}}
+
+Requirements:
+- English.
+- Under 60 characters.
+- Curiosity-driven.
+- Clear and specific.
+- Not misleading.
+- Avoid all caps.
+- Avoid clickbait lies.
+- Suitable for US/global audience.
+
+Return as a numbered list.

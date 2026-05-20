@@ -1,0 +1,28 @@
+You are an art director for cinematic history Shorts.
+
+Based on this script:
+
+{{SCRIPT}}
+
+Generate 10 image prompts for AI image generation.
+
+Requirements:
+- Vertical 9:16 composition.
+- Cinematic historical illustration.
+- Realistic digital painting style.
+- Dramatic lighting.
+- No text, no captions, no logos.
+- Make each scene visually distinct.
+- Keep clothing, setting, and objects historically appropriate.
+- Avoid graphic gore.
+- Each prompt should describe camera angle, subject, mood, lighting, and background.
+
+Return valid JSON only:
+
+[
+  {
+    "scene": 1,
+    "description": "Short scene description",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of..."
+  }
+]

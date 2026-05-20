@@ -1,0 +1,44 @@
+You are a professional history researcher for a YouTube Shorts channel.
+
+Topic: {{TOPIC}}
+
+Create a concise research brief for a 60-second history video.
+
+Requirements:
+- Use simple English for a general US/global audience.
+- Prioritize historically accepted facts.
+- If there are debated theories, clearly label them as "debated" or "uncertain".
+- Avoid conspiracy claims unless the topic is specifically about a myth or mystery.
+- Keep it concise but useful for scriptwriting.
+
+Return in this format:
+
+TITLE:
+[Clear topic title]
+
+HISTORICAL CONTEXT:
+[Short background]
+
+KEY TIMELINE:
+- [Event 1]
+- [Event 2]
+- [Event 3]
+
+MAIN FIGURES:
+- [Name]&#58; [Role]
+
+KEY FACTS:
+- [Fact 1]
+- [Fact 2]
+- [Fact 3]
+
+DRAMATIC ANGLE:
+[What makes this story emotionally or narratively interesting?]
+
+POSSIBLE HOOKS:
+1. [Hook 1]
+2. [Hook 2]
+3. [Hook 3]
+
+KEY TAKEAWAY:
+[One sentence lesson or insight]

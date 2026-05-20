@@ -1,0 +1,52 @@
+[
+  {
+    "scene": 1,
+    "description": "The legendary library vanishes into mystery",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of the Library of Alexandria at dusk, viewed from a low-angle wide shot across the harbor. The massive marble complex rises above the city, with towering columns and statues. Warm golden light from the setting sun illuminates the building, while dark storm clouds gather overhead, creating a mysterious mood. Ancient ships rest in the background on the Mediterranean Sea. Dramatic lighting, highly detailed historical architecture, no text."
+  },
+  {
+    "scene": 2,
+    "description": "Scholars preserving the world's knowledge",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of the interior of the Library of Alexandria, viewed from a medium-wide angle. Greek and Egyptian scholars in historically accurate robes study papyrus scrolls at wooden tables. Tall shelves packed with scrolls rise into the shadows. Sunlight streams through high windows, illuminating dust in the air. Mood of wonder and intellectual ambition. Dramatic lighting, richly detailed environment, no text."
+  },
+  {
+    "scene": 3,
+    "description": "Thousands of scrolls representing human knowledge",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting, close-up shot of dozens of papyrus scrolls stacked in ornate wooden cubbies, each tied with linen cords. A scholar's hand gently reaches for a scroll. Soft golden torchlight creates a warm and reverent mood. Background fades into endless shelves, suggesting vast knowledge. High detail, dramatic lighting, no text."
+  },
+  {
+    "scene": 4,
+    "description": "No single catastrophic destruction",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of a quiet, dim library hall with a few neglected shelves and scattered scrolls. The camera is centered at eye level, emphasizing emptiness and uncertainty. Dust hangs in shafts of light from cracked windows. Mood is somber and reflective. Historical architecture, dramatic soft lighting, no text."
+  },
+  {
+    "scene": 5,
+    "description": "Fire during Julius Caesar's campaign",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of Alexandria's harbor at night, viewed from an elevated angle. Ships burn in the port while smoke rises toward the city. In the distance, part of the library complex is illuminated by flames. Roman soldiers and Egyptian civilians appear as silhouettes. Mood of chaos and uncertainty. Dramatic orange firelight against dark blue night sky, no text."
+  },
+  {
+    "scene": 6,
+    "description": "Centuries of decline",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of the library interior decades later, viewed from a wide-angle shot. Broken shelves, fewer scrolls, and abandoned reading tables suggest gradual decline. Faded murals and cracked marble floors are lit by pale sunlight through a damaged roof. Mood of decay and loss. Highly detailed, dramatic lighting, no text."
+  },
+  {
+    "scene": 7,
+    "description": "The Serapeum destroyed",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of the Serapeum of Alexandria, viewed from a dramatic low angle. Massive columns collapse amid smoke and dust as crowds gather below. Statues and stone blocks tumble in the background. Lighting is stark and intense, with shafts of sunlight cutting through the haze. Mood of irreversible destruction. Historically accurate Roman-era architecture, no text."
+  },
+  {
+    "scene": 8,
+    "description": "Lost works of great thinkers",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of scattered papyrus scrolls blowing through a dark library corridor. The camera is low to the ground, following the motion of the scrolls. One scroll partially unravels in the foreground, while shadowy busts of ancient philosophers stand in the background. Mood is melancholic and haunting. Dramatic lighting, no text."
+  },
+  {
+    "scene": 9,
+    "description": "Knowledge disappearing into time",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of glowing scrolls turning into golden dust and drifting upward into darkness. Close-up composition with shallow depth of field. The particles rise toward a star-filled sky visible through an open roof. Mood is poetic and emotional. Soft, dramatic lighting, ultra-detailed, no text."
+  },
+  {
+    "scene": 10,
+    "description": "The fragile legacy of human knowledge",
+    "prompt": "Vertical 9:16 cinematic realistic digital painting of a lone scholar standing in the ruined remains of the Library of Alexandria at sunrise, viewed from behind. He holds a single scroll while looking at broken columns and scattered papyrus. Warm sunlight breaks through the ruins, symbolizing hope amid loss. Mood is reflective and inspiring. Highly detailed, dramatic lighting, no text."
+  }
+]
