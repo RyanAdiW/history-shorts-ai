@@ -11,11 +11,12 @@ import (
 )
 
 type Config struct {
-	Topic     string
-	PromptDir string
-	OutputDir string
-	Model     string
-	Progress  func(step string)
+	Topic        string
+	PromptDir    string
+	OutputDir    string
+	OpenAIAPIKey string
+	OpenAIModel  string
+	Progress     func(step string)
 }
 
 type state struct {
@@ -34,7 +35,7 @@ type step struct {
 
 func Generate(ctx context.Context, config Config) (string, error) {
 	prompts := prompt.NewLoader(config.PromptDir)
-	aiClient := ai.NewClient(config.Model)
+	aiClient := ai.NewClient(config.OpenAIAPIKey, config.OpenAIModel)
 
 	writer, err := output.NewWriter(config.OutputDir, utils.TopicSlug(config.Topic))
 	if err != nil {

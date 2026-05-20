@@ -8,13 +8,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/joho/godotenv"
-
+	"history-shorts-ai/internal/config"
 	"history-shorts-ai/internal/generator"
 )
 
 const (
-	defaultModel     = "gpt-5.2"
 	defaultPromptDir = "prompts"
 	defaultOutputDir = "output"
 )
@@ -27,7 +25,8 @@ func main() {
 }
 
 func run() error {
-	if err := loadEnv(); err != nil {
+	cfg, err := config.Load()
+	if err != nil {
 		return err
 	}
 
@@ -35,7 +34,7 @@ func run() error {
 		topic     = flag.String("topic", "", "history topic to generate")
 		promptDir = flag.String("prompts", defaultPromptDir, "directory containing prompt templates")
 		outputDir = flag.String("output", defaultOutputDir, "directory where generated artifacts are written")
-		model     = flag.String("model", envOrDefault("OPENAI_MODEL", defaultModel), "OpenAI model to use")
+		model     = flag.String("model", cfg.OpenAIModel, "OpenAI model to use")
 	)
 	flag.Parse()
 
@@ -43,15 +42,17 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) == "" {
-		return errors.New("OPENAI_API_KEY is not set; add it to .env or export it in your shell")
+	cfg.OpenAIModel = strings.TrimSpace(*model)
+	if err := cfg.Validate(); err != nil {
+		return err
 	}
 
 	outputPath, err := generator.Generate(context.Background(), generator.Config{
-		Topic:     cleanTopic,
-		PromptDir: *promptDir,
-		OutputDir: *outputDir,
-		Model:     *model,
+		Topic:        cleanTopic,
+		PromptDir:    *promptDir,
+		OutputDir:    *outputDir,
+		OpenAIAPIKey: cfg.OpenAIAPIKey,
+		OpenAIModel:  cfg.OpenAIModel,
 		Progress: func(step string) {
 			fmt.Printf("Generating %s...\n", step)
 		},
@@ -70,18 +71,4 @@ func validateTopic(topic string) (string, error) {
 		return "", errors.New(`missing required --topic, for example: --topic "Why Did Alexander the Great Die at Just 32?"`)
 	}
 	return topic, nil
-}
-
-func loadEnv() error {
-	if err := godotenv.Load(".env"); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("load .env: %w", err)
-	}
-	return nil
-}
-
-func envOrDefault(key, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-		return value
-	}
-	return fallback
 }
