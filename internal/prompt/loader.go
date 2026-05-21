@@ -2,23 +2,31 @@ package prompt
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 type Loader struct {
-	dir string
+	dir    string
+	logger *slog.Logger
 }
 
-func NewLoader(dir string) Loader {
-	return Loader{dir: dir}
+func NewLoader(dir string, logger *slog.Logger) Loader {
+	return Loader{
+		dir:    dir,
+		logger: loggerOrDefault(logger),
+	}
 }
 
 func (l Loader) Render(fileName string, values map[string]string) (string, error) {
-	content, err := os.ReadFile(filepath.Join(l.dir, fileName))
+	path := filepath.Join(l.dir, fileName)
+	content, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("read prompt %s: %w", fileName, err)
+		wrapped := fmt.Errorf("read prompt %s: %w", fileName, err)
+		l.logger.Error("failed to read prompt template", "path", path, "error", wrapped)
+		return "", wrapped
 	}
 
 	rendered := string(content)
@@ -26,4 +34,11 @@ func (l Loader) Render(fileName string, values map[string]string) (string, error
 		rendered = strings.ReplaceAll(rendered, placeholder, value)
 	}
 	return rendered, nil
+}
+
+func loggerOrDefault(logger *slog.Logger) *slog.Logger {
+	if logger != nil {
+		return logger
+	}
+	return slog.Default()
 }
