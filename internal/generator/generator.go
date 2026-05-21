@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"history-shorts-ai/internal/ai"
 	"history-shorts-ai/internal/output"
@@ -16,6 +17,7 @@ type Config struct {
 	OutputDir    string
 	OpenAIAPIKey string
 	OpenAIModel  string
+	Logger       *slog.Logger
 	Progress     func(step string)
 }
 
@@ -34,11 +36,13 @@ type step struct {
 }
 
 func Generate(ctx context.Context, config Config) (string, error) {
-	prompts := prompt.NewLoader(config.PromptDir)
-	aiClient := ai.NewClient(config.OpenAIAPIKey, config.OpenAIModel)
+	logger := loggerOrDefault(config.Logger)
+	prompts := prompt.NewLoader(config.PromptDir, logger)
+	aiClient := ai.NewClient(config.OpenAIAPIKey, config.OpenAIModel, logger)
 
-	writer, err := output.NewWriter(config.OutputDir, utils.TopicSlug(config.Topic))
+	writer, err := output.NewWriter(config.OutputDir, utils.TopicSlug(config.Topic), logger)
 	if err != nil {
+		logger.Error("failed to create output writer", "output_dir", config.OutputDir, "topic", config.Topic, "error", err)
 		return "", err
 	}
 
@@ -48,21 +52,32 @@ func Generate(ctx context.Context, config Config) (string, error) {
 
 		renderedPrompt, err := prompts.Render(step.promptFile, step.values(current))
 		if err != nil {
+			logger.Error("failed to render prompt", "step", step.name, "prompt_file", step.promptFile, "error", err)
 			return "", err
 		}
 
 		result, err := aiClient.Generate(ctx, renderedPrompt)
 		if err != nil {
-			return "", fmt.Errorf("generate %s: %w", step.name, err)
+			wrapped := fmt.Errorf("generate %s: %w", step.name, err)
+			logger.Error("failed to generate step", "step", step.name, "error", wrapped)
+			return "", wrapped
 		}
 
 		if err := writer.Write(step.outputFile, result); err != nil {
+			logger.Error("failed to write generated output", "step", step.name, "output_file", step.outputFile, "error", err)
 			return "", err
 		}
 		step.save(&current, result)
 	}
 
 	return writer.Dir(), nil
+}
+
+func loggerOrDefault(logger *slog.Logger) *slog.Logger {
+	if logger != nil {
+		return logger
+	}
+	return slog.Default()
 }
 
 func reportProgress(config Config, step string) {

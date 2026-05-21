@@ -3,35 +3,53 @@ package output
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 type Writer struct {
-	dir string
+	dir    string
+	logger *slog.Logger
 }
 
-func NewWriter(baseDir string, slug string) (Writer, error) {
+func NewWriter(baseDir string, slug string, logger *slog.Logger) (Writer, error) {
+	logger = loggerOrDefault(logger)
+
 	if strings.TrimSpace(slug) == "" {
-		return Writer{}, errors.New("output slug is empty")
+		err := errors.New("output slug is empty")
+		logger.Error("failed to create output writer", "base_dir", baseDir, "error", err)
+		return Writer{}, err
 	}
 
 	dir := filepath.Join(baseDir, slug)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return Writer{}, fmt.Errorf("create output directory: %w", err)
+		wrapped := fmt.Errorf("create output directory: %w", err)
+		logger.Error("failed to create output directory", "dir", dir, "error", wrapped)
+		return Writer{}, wrapped
 	}
-	return Writer{dir: dir}, nil
+	return Writer{dir: dir, logger: logger}, nil
 }
 
 func (w Writer) Write(fileName string, content string) error {
 	content = strings.TrimSpace(content) + "\n"
-	if err := os.WriteFile(filepath.Join(w.dir, fileName), []byte(content), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", fileName, err)
+	path := filepath.Join(w.dir, fileName)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		wrapped := fmt.Errorf("write %s: %w", fileName, err)
+		w.logger.Error("failed to write output file", "path", path, "error", wrapped)
+		return wrapped
 	}
 	return nil
 }
 
 func (w Writer) Dir() string {
 	return w.dir
+}
+
+func loggerOrDefault(logger *slog.Logger) *slog.Logger {
+	if logger != nil {
+		return logger
+	}
+	return slog.Default()
 }
