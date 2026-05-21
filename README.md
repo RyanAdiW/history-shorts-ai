@@ -54,3 +54,12 @@ go run cmd/generate/main.go \
   --prompts prompts \
   --output output
 ```
+
+## Make Commands
+
+```bash
+make generate TOPIC="Why Did Alexander the Great Die at Just 32?"
+make test
+make fmt
+make tidy
+```
