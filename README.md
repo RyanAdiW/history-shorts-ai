@@ -8,10 +8,10 @@ Add your API key to `.env`:
 
 ```env
 OPENAI_API_KEY=your_api_key_here
-OPENAI_MODEL=gpt-5.2
+OPENAI_MODEL=gpt-5.4-mini
 ```
 
-`OPENAI_MODEL` is optional. The CLI defaults to `gpt-5.2`.
+`OPENAI_MODEL` is optional. The CLI defaults to `gpt-5.4-mini`.
 
 ## Generate
 
@@ -50,7 +50,7 @@ Optional flags:
 ```bash
 go run cmd/generate/main.go \
   --topic "The shortest war in history" \
-  --model gpt-5.2 \
+  --model gpt-5.4-mini \
   --prompts prompts \
   --output output
 ```
