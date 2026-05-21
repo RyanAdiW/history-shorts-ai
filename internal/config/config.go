@@ -9,7 +9,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const defaultModel = "gpt-5.2"
+const defaultModel = "gpt-5.4-mini"
 
 type Config struct {
 	OpenAIAPIKey string
