@@ -41,6 +41,7 @@ func run(logger *slog.Logger) error {
 		outputDir = flag.String("output", defaultOutputDir, "directory where generated artifacts are written")
 		model     = flag.String("model", cfg.OpenAIModel, "OpenAI model to use")
 		voice     = flag.Bool("voice", false, "generate output voice.mp3 from script.txt")
+		force     = flag.Bool("force", false, "regenerate and overwrite existing output files")
 	)
 	flag.Parse()
 
@@ -63,6 +64,7 @@ func run(logger *slog.Logger) error {
 		OpenAITTSModel: cfg.OpenAITTSModel,
 		OpenAITTSVoice: cfg.OpenAITTSVoice,
 		GenerateVoice:  *voice,
+		Force:          *force,
 		Logger:         logger,
 		Progress: func(step string) {
 			fmt.Printf("Generating %s...\n", step)

@@ -4,6 +4,7 @@ MODEL ?=
 PROMPTS ?= prompts
 OUTPUT ?= output
 VOICE ?=
+FORCE ?=
 
 GENERATE_ARGS := --topic "$(TOPIC)" --prompts "$(PROMPTS)" --output "$(OUTPUT)"
 ifneq ($(strip $(MODEL)),)
@@ -12,6 +13,9 @@ endif
 ifneq ($(strip $(VOICE)),)
 GENERATE_ARGS += --voice
 endif
+ifneq ($(strip $(FORCE)),)
+GENERATE_ARGS += --force
+endif
 
 .PHONY: help generate test fmt tidy
 
@@ -19,6 +23,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make generate TOPIC=\"Why Did Alexander the Great Die at Just 32?\""
 	@echo "  make generate TOPIC=\"Why Did Alexander the Great Die at Just 32?\" VOICE=1"
+	@echo "  make generate TOPIC=\"Why Did Alexander the Great Die at Just 32?\" FORCE=1"
 	@echo "  make test"
 	@echo "  make fmt"
 	@echo "  make tidy"
