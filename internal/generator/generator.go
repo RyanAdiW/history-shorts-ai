@@ -21,6 +21,7 @@ type Config struct {
 	OpenAITTSModel string
 	OpenAITTSVoice string
 	GenerateVoice  bool
+	Force          bool
 	Logger         *slog.Logger
 	Progress       func(step string)
 }
@@ -52,8 +53,18 @@ func Generate(ctx context.Context, config Config) (string, error) {
 
 	current := state{topic: config.Topic}
 	for _, step := range steps() {
-		reportProgress(config, step.name)
+		if !config.Force && writer.Exists(step.outputFile) {
+			result, err := writer.Read(step.outputFile)
+			if err != nil {
+				logger.Error("failed to reuse existing output", "step", step.name, "output_file", step.outputFile, "error", err)
+				return "", err
+			}
+			step.save(&current, result)
+			logger.Info("reused existing output", "step", step.name, "output_file", step.outputFile)
+			continue
+		}
 
+		reportProgress(config, step.name)
 		renderedPrompt, err := prompts.Render(step.promptFile, step.values(current))
 		if err != nil {
 			logger.Error("failed to render prompt", "step", step.name, "prompt_file", step.promptFile, "error", err)
@@ -72,17 +83,27 @@ func Generate(ctx context.Context, config Config) (string, error) {
 			return "", err
 		}
 		step.save(&current, result)
+		logger.Info("generated output", "step", step.name, "output_file", step.outputFile)
 	}
 
-	if config.GenerateVoice {
-		reportProgress(config, "voiceover")
-		ttsClient := tts.NewClient(config.OpenAIAPIKey, config.OpenAITTSModel, config.OpenAITTSVoice, logger)
-		if err := ttsClient.GenerateFromFile(ctx, writer.Path("script.txt"), writer.Path("voice.mp3")); err != nil {
-			wrapped := fmt.Errorf("generate voiceover: %w", err)
-			logger.Error("failed to generate voiceover", "error", wrapped)
-			return "", wrapped
-		}
+	if !config.GenerateVoice {
+		logger.Info("skipped voiceover", "reason", "voice flag disabled")
+		return writer.Dir(), nil
 	}
+
+	if !config.Force && writer.Exists("voice.mp3") {
+		logger.Info("skipped voiceover", "output_file", "voice.mp3", "reason", "file already exists")
+		return writer.Dir(), nil
+	}
+
+	reportProgress(config, "voiceover")
+	ttsClient := tts.NewClient(config.OpenAIAPIKey, config.OpenAITTSModel, config.OpenAITTSVoice, logger)
+	if err := ttsClient.GenerateFromFile(ctx, writer.Path("script.txt"), writer.Path("voice.mp3")); err != nil {
+		wrapped := fmt.Errorf("generate voiceover: %w", err)
+		logger.Error("failed to generate voiceover", "error", wrapped)
+		return "", wrapped
+	}
+	logger.Info("generated voiceover", "input_file", "script.txt", "output_file", "voice.mp3")
 
 	return writer.Dir(), nil
 }

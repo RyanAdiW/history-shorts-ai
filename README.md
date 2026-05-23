@@ -49,6 +49,8 @@ Script
   `-- Description
 ```
 
+By default, rerunning the same topic reuses existing output files and only generates missing files. Pass `--force` to regenerate and overwrite existing files.
+
 Optional flags:
 
 ```bash
@@ -57,7 +59,8 @@ go run cmd/generate/main.go \
   --model gpt-5.4-mini \
   --prompts prompts \
   --output output \
-  --voice
+  --voice \
+  --force
 ```
 
 ## Make Commands
@@ -65,6 +68,7 @@ go run cmd/generate/main.go \
 ```bash
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?"
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" VOICE=1
+make generate TOPIC="Why Did Alexander the Great Die at Just 32?" FORCE=1
 make test
 make fmt
 make tidy

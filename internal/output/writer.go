@@ -43,6 +43,23 @@ func (w Writer) Write(fileName string, content string) error {
 	return nil
 }
 
+func (w Writer) Read(fileName string) (string, error) {
+	path := filepath.Join(w.dir, fileName)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		wrapped := fmt.Errorf("read %s: %w", fileName, err)
+		w.logger.Error("failed to read output file", "path", path, "error", wrapped)
+		return "", wrapped
+	}
+	return strings.TrimSpace(string(content)), nil
+}
+
+func (w Writer) Exists(fileName string) bool {
+	path := filepath.Join(w.dir, fileName)
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
 func (w Writer) Dir() string {
 	return w.dir
 }
