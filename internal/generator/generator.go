@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"history-shorts-ai/internal/ai"
+	"history-shorts-ai/internal/imagegen"
 	"history-shorts-ai/internal/output"
 	"history-shorts-ai/internal/prompt"
 	"history-shorts-ai/internal/tts"
@@ -13,17 +14,20 @@ import (
 )
 
 type Config struct {
-	Topic          string
-	PromptDir      string
-	OutputDir      string
-	OpenAIAPIKey   string
-	OpenAIModel    string
-	OpenAITTSModel string
-	OpenAITTSVoice string
-	GenerateVoice  bool
-	Force          bool
-	Logger         *slog.Logger
-	Progress       func(step string)
+	Topic            string
+	PromptDir        string
+	OutputDir        string
+	OpenAIAPIKey     string
+	OpenAIModel      string
+	OpenAITTSModel   string
+	OpenAITTSVoice   string
+	OpenAIImageModel string
+	OpenAIImageSize  string
+	GenerateVoice    bool
+	GenerateImages   bool
+	Force            bool
+	Logger           *slog.Logger
+	Progress         func(step string)
 }
 
 type state struct {
@@ -61,6 +65,11 @@ func Generate(ctx context.Context, config Config) (string, error) {
 			}
 			step.save(&current, result)
 			logger.Info("reused existing output", "step", step.name, "output_file", step.outputFile)
+			if step.outputFile == "image_prompts.json" {
+				if err := generateImages(ctx, config, writer, logger); err != nil {
+					return "", err
+				}
+			}
 			continue
 		}
 
@@ -84,6 +93,12 @@ func Generate(ctx context.Context, config Config) (string, error) {
 		}
 		step.save(&current, result)
 		logger.Info("generated output", "step", step.name, "output_file", step.outputFile)
+
+		if step.outputFile == "image_prompts.json" {
+			if err := generateImages(ctx, config, writer, logger); err != nil {
+				return "", err
+			}
+		}
 	}
 
 	if !config.GenerateVoice {
@@ -106,6 +121,22 @@ func Generate(ctx context.Context, config Config) (string, error) {
 	logger.Info("generated voiceover", "input_file", "script.txt", "output_file", "voice.mp3")
 
 	return writer.Dir(), nil
+}
+
+func generateImages(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
+	if !config.GenerateImages {
+		logger.Info("skipped image generation", "reason", "images flag disabled")
+		return nil
+	}
+
+	reportProgress(config, "images")
+	imageClient := imagegen.NewClient(config.OpenAIAPIKey, config.OpenAIImageModel, config.OpenAIImageSize, logger)
+	if err := imageClient.GenerateFromFile(ctx, writer.Path("image_prompts.json"), writer.Path("images"), config.Force); err != nil {
+		wrapped := fmt.Errorf("generate images: %w", err)
+		logger.Error("failed to generate images", "error", wrapped)
+		return wrapped
+	}
+	return nil
 }
 
 func loggerOrDefault(logger *slog.Logger) *slog.Logger {
