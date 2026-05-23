@@ -19,16 +19,20 @@ import (
 )
 
 const (
+	EnvImageQuality = "OPENAI_IMAGE_QUALITY"
+	DefaultQuality  = "low"
+
 	defaultModel   = "gpt-image-1"
 	defaultSize    = "1024x1536"
 	requestTimeout = 5 * time.Minute
 )
 
 type Client struct {
-	model  string
-	size   string
-	api    openai.Client
-	logger *slog.Logger
+	model   string
+	size    string
+	quality string
+	api     openai.Client
+	logger  *slog.Logger
 }
 
 type Scene struct {
@@ -37,16 +41,25 @@ type Scene struct {
 	Prompt      string `json:"prompt"`
 }
 
-func NewClient(apiKey string, model string, size string, logger *slog.Logger) Client {
+func NewClient(apiKey string, model string, size string, quality string, logger *slog.Logger) Client {
 	return Client{
-		model:  valueOrDefault(model, defaultModel),
-		size:   valueOrDefault(size, defaultSize),
-		api:    openai.NewClient(option.WithAPIKey(apiKey)),
-		logger: loggerOrDefault(logger),
+		model:   valueOrDefault(model, defaultModel),
+		size:    valueOrDefault(size, defaultSize),
+		quality: valueOrDefault(quality, DefaultQuality),
+		api:     openai.NewClient(option.WithAPIKey(apiKey)),
+		logger:  loggerOrDefault(logger),
 	}
 }
 
 func (c Client) GenerateFromFile(ctx context.Context, promptsPath string, imagesDir string, force bool) error {
+	quality, err := ValidateQuality(c.quality)
+	if err != nil {
+		c.logger.Error("invalid image quality", "quality", c.quality, "error", err)
+		return err
+	}
+	c.quality = quality
+	c.logger.Info("using image generation settings", "model", c.model, "size", c.size, "quality", c.quality)
+
 	scenes, err := ReadScenes(promptsPath)
 	if err != nil {
 		c.logger.Error("failed to read image prompts", "prompts_path", promptsPath, "error", err)
@@ -83,10 +96,28 @@ func (c Client) GenerateFromFile(ctx context.Context, promptsPath string, images
 			c.logger.Error("failed to generate image", "scene", sceneNumber(scene, i), "output_file", outputPath, "error", wrapped)
 			return wrapped
 		}
-		c.logger.Info("generated image", "scene", sceneNumber(scene, i), "output_file", outputPath, "model", c.model, "size", c.size)
+		c.logger.Info("generated image", "scene", sceneNumber(scene, i), "output_file", outputPath, "model", c.model, "size", c.size, "quality", c.quality)
 	}
 
 	return nil
+}
+
+func QualityFromEnv() string {
+	return valueOrDefault(os.Getenv(EnvImageQuality), DefaultQuality)
+}
+
+func ValidateQuality(quality string) (string, error) {
+	quality = strings.TrimSpace(strings.ToLower(quality))
+	if quality == "" {
+		return DefaultQuality, nil
+	}
+
+	switch quality {
+	case "low", "medium", "high":
+		return quality, nil
+	default:
+		return "", fmt.Errorf("%s must be one of low, medium, or high; got %q", EnvImageQuality, quality)
+	}
 }
 
 func ReadScenes(path string) ([]Scene, error) {
@@ -116,6 +147,7 @@ func (c Client) generate(ctx context.Context, prompt string, outputPath string) 
 		Model:        openai.ImageModel(c.model),
 		N:            openai.Int(1),
 		OutputFormat: openai.ImageGenerateParamsOutputFormatPNG,
+		Quality:      openai.ImageGenerateParamsQuality(c.quality),
 		Size:         openai.ImageGenerateParamsSize(c.size),
 	}
 	if isDallEModel(c.model) {

@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"history-shorts-ai/internal/imagegen"
+
 	"github.com/joho/godotenv"
 )
 
@@ -18,12 +20,13 @@ const (
 )
 
 type Config struct {
-	OpenAIAPIKey     string
-	OpenAIModel      string
-	OpenAITTSModel   string
-	OpenAITTSVoice   string
-	OpenAIImageModel string
-	OpenAIImageSize  string
+	OpenAIAPIKey       string
+	OpenAIModel        string
+	OpenAITTSModel     string
+	OpenAITTSVoice     string
+	OpenAIImageModel   string
+	OpenAIImageSize    string
+	OpenAIImageQuality string
 }
 
 func Load(logger *slog.Logger) (Config, error) {
@@ -36,12 +39,13 @@ func Load(logger *slog.Logger) (Config, error) {
 	}
 
 	return Config{
-		OpenAIAPIKey:     strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
-		OpenAIModel:      envOrDefault("OPENAI_MODEL", defaultModel),
-		OpenAITTSModel:   envOrDefault("OPENAI_TTS_MODEL", defaultTTSModel),
-		OpenAITTSVoice:   envOrDefault("OPENAI_TTS_VOICE", defaultTTSVoice),
-		OpenAIImageModel: envOrDefault("OPENAI_IMAGE_MODEL", defaultImageModel),
-		OpenAIImageSize:  envOrDefault("OPENAI_IMAGE_SIZE", defaultImageSize),
+		OpenAIAPIKey:       strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		OpenAIModel:        envOrDefault("OPENAI_MODEL", defaultModel),
+		OpenAITTSModel:     envOrDefault("OPENAI_TTS_MODEL", defaultTTSModel),
+		OpenAITTSVoice:     envOrDefault("OPENAI_TTS_VOICE", defaultTTSVoice),
+		OpenAIImageModel:   envOrDefault("OPENAI_IMAGE_MODEL", defaultImageModel),
+		OpenAIImageSize:    envOrDefault("OPENAI_IMAGE_SIZE", defaultImageSize),
+		OpenAIImageQuality: imagegen.QualityFromEnv(),
 	}, nil
 }
 
@@ -76,6 +80,10 @@ func (c Config) Validate(logger *slog.Logger) error {
 	if c.OpenAIImageSize == "" {
 		err := fmt.Errorf("OPENAI_IMAGE_SIZE is empty; set it in .env or leave it unset to use the default")
 		logger.Error("missing OpenAI image size", "env", "OPENAI_IMAGE_SIZE", "error", err)
+		return err
+	}
+	if _, err := imagegen.ValidateQuality(c.OpenAIImageQuality); err != nil {
+		logger.Error("invalid OpenAI image quality", "env", imagegen.EnvImageQuality, "error", err)
 		return err
 	}
 	return nil
