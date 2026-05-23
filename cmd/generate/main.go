@@ -41,6 +41,7 @@ func run(logger *slog.Logger) error {
 		outputDir = flag.String("output", defaultOutputDir, "directory where generated artifacts are written")
 		model     = flag.String("model", cfg.OpenAIModel, "OpenAI model to use")
 		voice     = flag.Bool("voice", false, "generate output voice.mp3 from script.txt")
+		images    = flag.Bool("images", false, "generate output images from image_prompts.json")
 		force     = flag.Bool("force", false, "regenerate and overwrite existing output files")
 	)
 	flag.Parse()
@@ -56,16 +57,19 @@ func run(logger *slog.Logger) error {
 	}
 
 	outputPath, err := generator.Generate(context.Background(), generator.Config{
-		Topic:          cleanTopic,
-		PromptDir:      *promptDir,
-		OutputDir:      *outputDir,
-		OpenAIAPIKey:   cfg.OpenAIAPIKey,
-		OpenAIModel:    cfg.OpenAIModel,
-		OpenAITTSModel: cfg.OpenAITTSModel,
-		OpenAITTSVoice: cfg.OpenAITTSVoice,
-		GenerateVoice:  *voice,
-		Force:          *force,
-		Logger:         logger,
+		Topic:            cleanTopic,
+		PromptDir:        *promptDir,
+		OutputDir:        *outputDir,
+		OpenAIAPIKey:     cfg.OpenAIAPIKey,
+		OpenAIModel:      cfg.OpenAIModel,
+		OpenAITTSModel:   cfg.OpenAITTSModel,
+		OpenAITTSVoice:   cfg.OpenAITTSVoice,
+		OpenAIImageModel: cfg.OpenAIImageModel,
+		OpenAIImageSize:  cfg.OpenAIImageSize,
+		GenerateVoice:    *voice,
+		GenerateImages:   *images,
+		Force:            *force,
+		Logger:           logger,
 		Progress: func(step string) {
 			fmt.Printf("Generating %s...\n", step)
 		},

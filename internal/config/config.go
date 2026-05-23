@@ -10,16 +10,20 @@ import (
 )
 
 const (
-	defaultModel    = "gpt-5.4-mini"
-	defaultTTSModel = "gpt-4o-mini-tts"
-	defaultTTSVoice = "marin"
+	defaultModel      = "gpt-5.4-mini"
+	defaultTTSModel   = "gpt-4o-mini-tts"
+	defaultTTSVoice   = "marin"
+	defaultImageModel = "gpt-image-1"
+	defaultImageSize  = "1024x1536"
 )
 
 type Config struct {
-	OpenAIAPIKey  string
-	OpenAIModel   string
-	OpenAITTSModel string
-	OpenAITTSVoice string
+	OpenAIAPIKey     string
+	OpenAIModel      string
+	OpenAITTSModel   string
+	OpenAITTSVoice   string
+	OpenAIImageModel string
+	OpenAIImageSize  string
 }
 
 func Load(logger *slog.Logger) (Config, error) {
@@ -32,10 +36,12 @@ func Load(logger *slog.Logger) (Config, error) {
 	}
 
 	return Config{
-		OpenAIAPIKey:  strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
-		OpenAIModel:   envOrDefault("OPENAI_MODEL", defaultModel),
-		OpenAITTSModel: envOrDefault("OPENAI_TTS_MODEL", defaultTTSModel),
-		OpenAITTSVoice: envOrDefault("OPENAI_TTS_VOICE", defaultTTSVoice),
+		OpenAIAPIKey:     strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		OpenAIModel:      envOrDefault("OPENAI_MODEL", defaultModel),
+		OpenAITTSModel:   envOrDefault("OPENAI_TTS_MODEL", defaultTTSModel),
+		OpenAITTSVoice:   envOrDefault("OPENAI_TTS_VOICE", defaultTTSVoice),
+		OpenAIImageModel: envOrDefault("OPENAI_IMAGE_MODEL", defaultImageModel),
+		OpenAIImageSize:  envOrDefault("OPENAI_IMAGE_SIZE", defaultImageSize),
 	}, nil
 }
 
@@ -60,6 +66,16 @@ func (c Config) Validate(logger *slog.Logger) error {
 	if c.OpenAITTSVoice == "" {
 		err := fmt.Errorf("OPENAI_TTS_VOICE is empty; set it in .env or leave it unset to use the default")
 		logger.Error("missing OpenAI TTS voice", "env", "OPENAI_TTS_VOICE", "error", err)
+		return err
+	}
+	if c.OpenAIImageModel == "" {
+		err := fmt.Errorf("OPENAI_IMAGE_MODEL is empty; set it in .env or leave it unset to use the default")
+		logger.Error("missing OpenAI image model", "env", "OPENAI_IMAGE_MODEL", "error", err)
+		return err
+	}
+	if c.OpenAIImageSize == "" {
+		err := fmt.Errorf("OPENAI_IMAGE_SIZE is empty; set it in .env or leave it unset to use the default")
+		logger.Error("missing OpenAI image size", "env", "OPENAI_IMAGE_SIZE", "error", err)
 		return err
 	}
 	return nil
