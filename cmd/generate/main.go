@@ -40,6 +40,7 @@ func run(logger *slog.Logger) error {
 		promptDir = flag.String("prompts", defaultPromptDir, "directory containing prompt templates")
 		outputDir = flag.String("output", defaultOutputDir, "directory where generated artifacts are written")
 		model     = flag.String("model", cfg.OpenAIModel, "OpenAI model to use")
+		voice     = flag.Bool("voice", false, "generate output voice.mp3 from script.txt")
 	)
 	flag.Parse()
 
@@ -54,12 +55,15 @@ func run(logger *slog.Logger) error {
 	}
 
 	outputPath, err := generator.Generate(context.Background(), generator.Config{
-		Topic:        cleanTopic,
-		PromptDir:    *promptDir,
-		OutputDir:    *outputDir,
-		OpenAIAPIKey: cfg.OpenAIAPIKey,
-		OpenAIModel:  cfg.OpenAIModel,
-		Logger:       logger,
+		Topic:          cleanTopic,
+		PromptDir:      *promptDir,
+		OutputDir:      *outputDir,
+		OpenAIAPIKey:   cfg.OpenAIAPIKey,
+		OpenAIModel:    cfg.OpenAIModel,
+		OpenAITTSModel: cfg.OpenAITTSModel,
+		OpenAITTSVoice: cfg.OpenAITTSVoice,
+		GenerateVoice:  *voice,
+		Logger:         logger,
 		Progress: func(step string) {
 			fmt.Printf("Generating %s...\n", step)
 		},

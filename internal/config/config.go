@@ -9,11 +9,17 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const defaultModel = "gpt-5.4-mini"
+const (
+	defaultModel    = "gpt-5.4-mini"
+	defaultTTSModel = "gpt-4o-mini-tts"
+	defaultTTSVoice = "marin"
+)
 
 type Config struct {
-	OpenAIAPIKey string
-	OpenAIModel  string
+	OpenAIAPIKey  string
+	OpenAIModel   string
+	OpenAITTSModel string
+	OpenAITTSVoice string
 }
 
 func Load(logger *slog.Logger) (Config, error) {
@@ -26,8 +32,10 @@ func Load(logger *slog.Logger) (Config, error) {
 	}
 
 	return Config{
-		OpenAIAPIKey: strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
-		OpenAIModel:  envOrDefault("OPENAI_MODEL", defaultModel),
+		OpenAIAPIKey:  strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		OpenAIModel:   envOrDefault("OPENAI_MODEL", defaultModel),
+		OpenAITTSModel: envOrDefault("OPENAI_TTS_MODEL", defaultTTSModel),
+		OpenAITTSVoice: envOrDefault("OPENAI_TTS_VOICE", defaultTTSVoice),
 	}, nil
 }
 
@@ -42,6 +50,16 @@ func (c Config) Validate(logger *slog.Logger) error {
 	if c.OpenAIModel == "" {
 		err := fmt.Errorf("OPENAI_MODEL is empty; set it in .env or pass --model")
 		logger.Error("missing OpenAI model", "env", "OPENAI_MODEL", "error", err)
+		return err
+	}
+	if c.OpenAITTSModel == "" {
+		err := fmt.Errorf("OPENAI_TTS_MODEL is empty; set it in .env or leave it unset to use the default")
+		logger.Error("missing OpenAI TTS model", "env", "OPENAI_TTS_MODEL", "error", err)
+		return err
+	}
+	if c.OpenAITTSVoice == "" {
+		err := fmt.Errorf("OPENAI_TTS_VOICE is empty; set it in .env or leave it unset to use the default")
+		logger.Error("missing OpenAI TTS voice", "env", "OPENAI_TTS_VOICE", "error", err)
 		return err
 	}
 	return nil

@@ -8,17 +8,21 @@ import (
 	"history-shorts-ai/internal/ai"
 	"history-shorts-ai/internal/output"
 	"history-shorts-ai/internal/prompt"
+	"history-shorts-ai/internal/tts"
 	"history-shorts-ai/internal/utils"
 )
 
 type Config struct {
-	Topic        string
-	PromptDir    string
-	OutputDir    string
-	OpenAIAPIKey string
-	OpenAIModel  string
-	Logger       *slog.Logger
-	Progress     func(step string)
+	Topic          string
+	PromptDir      string
+	OutputDir      string
+	OpenAIAPIKey   string
+	OpenAIModel    string
+	OpenAITTSModel string
+	OpenAITTSVoice string
+	GenerateVoice  bool
+	Logger         *slog.Logger
+	Progress       func(step string)
 }
 
 type state struct {
@@ -68,6 +72,16 @@ func Generate(ctx context.Context, config Config) (string, error) {
 			return "", err
 		}
 		step.save(&current, result)
+	}
+
+	if config.GenerateVoice {
+		reportProgress(config, "voiceover")
+		ttsClient := tts.NewClient(config.OpenAIAPIKey, config.OpenAITTSModel, config.OpenAITTSVoice, logger)
+		if err := ttsClient.GenerateFromFile(ctx, writer.Path("script.txt"), writer.Path("voice.mp3")); err != nil {
+			wrapped := fmt.Errorf("generate voiceover: %w", err)
+			logger.Error("failed to generate voiceover", "error", wrapped)
+			return "", wrapped
+		}
 	}
 
 	return writer.Dir(), nil
