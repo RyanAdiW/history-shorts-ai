@@ -47,6 +47,10 @@ func (w Writer) Dir() string {
 	return w.dir
 }
 
+func (w Writer) Path(fileName string) string {
+	return filepath.Join(w.dir, fileName)
+}
+
 func loggerOrDefault(logger *slog.Logger) *slog.Logger {
 	if logger != nil {
 		return logger
