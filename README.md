@@ -13,9 +13,10 @@ OPENAI_TTS_MODEL=gpt-4o-mini-tts
 OPENAI_TTS_VOICE=marin
 OPENAI_IMAGE_MODEL=gpt-image-1
 OPENAI_IMAGE_SIZE=1024x1536
+OPENAI_IMAGE_QUALITY=low
 ```
 
-`OPENAI_MODEL`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`, `OPENAI_IMAGE_MODEL`, and `OPENAI_IMAGE_SIZE` are optional. The CLI defaults to `gpt-5.4-mini` for text generation, `gpt-4o-mini-tts` with the `marin` voice for TTS, and `gpt-image-1` at `1024x1536` for images.
+`OPENAI_MODEL`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_SIZE`, and `OPENAI_IMAGE_QUALITY` are optional. The CLI defaults to `gpt-5.4-mini` for text generation, `gpt-4o-mini-tts` with the `marin` voice for TTS, and `gpt-image-1` at `1024x1536` with `low` quality for images.
 
 ## Generate
 

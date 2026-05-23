@@ -14,20 +14,21 @@ import (
 )
 
 type Config struct {
-	Topic            string
-	PromptDir        string
-	OutputDir        string
-	OpenAIAPIKey     string
-	OpenAIModel      string
-	OpenAITTSModel   string
-	OpenAITTSVoice   string
-	OpenAIImageModel string
-	OpenAIImageSize  string
-	GenerateVoice    bool
-	GenerateImages   bool
-	Force            bool
-	Logger           *slog.Logger
-	Progress         func(step string)
+	Topic              string
+	PromptDir          string
+	OutputDir          string
+	OpenAIAPIKey       string
+	OpenAIModel        string
+	OpenAITTSModel     string
+	OpenAITTSVoice     string
+	OpenAIImageModel   string
+	OpenAIImageSize    string
+	OpenAIImageQuality string
+	GenerateVoice      bool
+	GenerateImages     bool
+	Force              bool
+	Logger             *slog.Logger
+	Progress           func(step string)
 }
 
 type state struct {
@@ -130,7 +131,7 @@ func generateImages(ctx context.Context, config Config, writer output.Writer, lo
 	}
 
 	reportProgress(config, "images")
-	imageClient := imagegen.NewClient(config.OpenAIAPIKey, config.OpenAIImageModel, config.OpenAIImageSize, logger)
+	imageClient := imagegen.NewClient(config.OpenAIAPIKey, config.OpenAIImageModel, config.OpenAIImageSize, config.OpenAIImageQuality, logger)
 	if err := imageClient.GenerateFromFile(ctx, writer.Path("image_prompts.json"), writer.Path("images"), config.Force); err != nil {
 		wrapped := fmt.Errorf("generate images: %w", err)
 		logger.Error("failed to generate images", "error", wrapped)

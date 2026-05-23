@@ -57,19 +57,20 @@ func run(logger *slog.Logger) error {
 	}
 
 	outputPath, err := generator.Generate(context.Background(), generator.Config{
-		Topic:            cleanTopic,
-		PromptDir:        *promptDir,
-		OutputDir:        *outputDir,
-		OpenAIAPIKey:     cfg.OpenAIAPIKey,
-		OpenAIModel:      cfg.OpenAIModel,
-		OpenAITTSModel:   cfg.OpenAITTSModel,
-		OpenAITTSVoice:   cfg.OpenAITTSVoice,
-		OpenAIImageModel: cfg.OpenAIImageModel,
-		OpenAIImageSize:  cfg.OpenAIImageSize,
-		GenerateVoice:    *voice,
-		GenerateImages:   *images,
-		Force:            *force,
-		Logger:           logger,
+		Topic:              cleanTopic,
+		PromptDir:          *promptDir,
+		OutputDir:          *outputDir,
+		OpenAIAPIKey:       cfg.OpenAIAPIKey,
+		OpenAIModel:        cfg.OpenAIModel,
+		OpenAITTSModel:     cfg.OpenAITTSModel,
+		OpenAITTSVoice:     cfg.OpenAITTSVoice,
+		OpenAIImageModel:   cfg.OpenAIImageModel,
+		OpenAIImageSize:    cfg.OpenAIImageSize,
+		OpenAIImageQuality: cfg.OpenAIImageQuality,
+		GenerateVoice:      *voice,
+		GenerateImages:     *images,
+		Force:              *force,
+		Logger:             logger,
 		Progress: func(step string) {
 			fmt.Printf("Generating %s...\n", step)
 		},
