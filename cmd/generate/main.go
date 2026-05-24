@@ -42,6 +42,7 @@ func run(logger *slog.Logger) error {
 		model     = flag.String("model", cfg.OpenAIModel, "OpenAI model to use")
 		voice     = flag.Bool("voice", false, "generate output voice.mp3 from script.txt")
 		images    = flag.Bool("images", false, "generate output images from image_prompts.json")
+		captions  = flag.Bool("captions", false, "generate output captions.srt from script.txt and voice.mp3")
 		force     = flag.Bool("force", false, "regenerate and overwrite existing output files")
 	)
 	flag.Parse()
@@ -69,6 +70,7 @@ func run(logger *slog.Logger) error {
 		OpenAIImageQuality: cfg.OpenAIImageQuality,
 		GenerateVoice:      *voice,
 		GenerateImages:     *images,
+		GenerateCaptions:   *captions,
 		Force:              *force,
 		Logger:             logger,
 		Progress: func(step string) {
