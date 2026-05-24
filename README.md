@@ -24,7 +24,8 @@ OPENAI_IMAGE_QUALITY=low
 go run cmd/generate/main.go \
   --topic "Why Did Alexander the Great Die at Just 32?" \
   --voice \
-  --images
+  --images \
+  --captions
 ```
 
 The generator writes:
@@ -40,7 +41,8 @@ output/alexander-the-great/
 |   |-- 01.png
 |   |-- 02.png
 |   `-- 03.png
-`-- voice.mp3
+|-- voice.mp3
+`-- captions.srt
 ```
 
 Generation order:
@@ -59,6 +61,8 @@ Script
 
 By default, rerunning the same topic reuses existing output files and only generates missing files. Pass `--force` to regenerate and overwrite existing files.
 
+`--captions` creates `captions.srt` from `script.txt` and the estimated duration of `voice.mp3`. If `captions.srt` already exists, it is reused unless `--force` is passed.
+
 Optional flags:
 
 ```bash
@@ -69,6 +73,7 @@ go run cmd/generate/main.go \
   --output output \
   --voice \
   --images \
+  --captions \
   --force
 ```
 
@@ -78,6 +83,7 @@ go run cmd/generate/main.go \
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?"
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" VOICE=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" IMAGES=1
+make generate TOPIC="Why Did Alexander the Great Die at Just 32?" CAPTIONS=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" FORCE=1
 make test
 make fmt

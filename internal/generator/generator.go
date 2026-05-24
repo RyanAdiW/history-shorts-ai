@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"history-shorts-ai/internal/ai"
+	"history-shorts-ai/internal/caption"
 	"history-shorts-ai/internal/imagegen"
 	"history-shorts-ai/internal/output"
 	"history-shorts-ai/internal/prompt"
@@ -26,6 +27,7 @@ type Config struct {
 	OpenAIImageQuality string
 	GenerateVoice      bool
 	GenerateImages     bool
+	GenerateCaptions   bool
 	Force              bool
 	Logger             *slog.Logger
 	Progress           func(step string)
@@ -102,14 +104,25 @@ func Generate(ctx context.Context, config Config) (string, error) {
 		}
 	}
 
+	if err := generateVoiceover(ctx, config, writer, logger); err != nil {
+		return "", err
+	}
+	if err := generateCaptions(config, writer, logger); err != nil {
+		return "", err
+	}
+
+	return writer.Dir(), nil
+}
+
+func generateVoiceover(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
 	if !config.GenerateVoice {
 		logger.Info("skipped voiceover", "reason", "voice flag disabled")
-		return writer.Dir(), nil
+		return nil
 	}
 
 	if !config.Force && writer.Exists("voice.mp3") {
 		logger.Info("skipped voiceover", "output_file", "voice.mp3", "reason", "file already exists")
-		return writer.Dir(), nil
+		return nil
 	}
 
 	reportProgress(config, "voiceover")
@@ -117,11 +130,33 @@ func Generate(ctx context.Context, config Config) (string, error) {
 	if err := ttsClient.GenerateFromFile(ctx, writer.Path("script.txt"), writer.Path("voice.mp3")); err != nil {
 		wrapped := fmt.Errorf("generate voiceover: %w", err)
 		logger.Error("failed to generate voiceover", "error", wrapped)
-		return "", wrapped
+		return wrapped
 	}
 	logger.Info("generated voiceover", "input_file", "script.txt", "output_file", "voice.mp3")
+	return nil
+}
 
-	return writer.Dir(), nil
+func generateCaptions(config Config, writer output.Writer, logger *slog.Logger) error {
+	if !config.GenerateCaptions {
+		logger.Info("skipped captions", "reason", "captions flag disabled")
+		return nil
+	}
+
+	if config.Force || !writer.Exists("captions.srt") {
+		reportProgress(config, "captions")
+	}
+	if _, err := caption.GenerateFromFiles(caption.Config{
+		ScriptPath: writer.Path("script.txt"),
+		AudioPath:  writer.Path("voice.mp3"),
+		OutputPath: writer.Path("captions.srt"),
+		Force:      config.Force,
+		Logger:     logger,
+	}); err != nil {
+		wrapped := fmt.Errorf("generate captions: %w", err)
+		logger.Error("failed to generate captions", "error", wrapped)
+		return wrapped
+	}
+	return nil
 }
 
 func generateImages(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
