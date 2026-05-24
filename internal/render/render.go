@@ -18,6 +18,8 @@ import (
 const (
 	defaultFFmpegPath  = "ffmpeg"
 	defaultFFprobePath = "ffprobe"
+	EnvVoiceVolume     = "VIDEO_VOICE_VOLUME"
+	DefaultVoiceVolume = 2.0
 	outputWidth        = 1080
 	outputHeight       = 1920
 	outputFPS          = 30
@@ -38,6 +40,7 @@ type Config struct {
 	Force        bool
 	FFmpegPath   string
 	FFprobePath  string
+	VoiceVolume  float64
 	Logger       *slog.Logger
 }
 
@@ -70,6 +73,12 @@ func RenderFromFiles(ctx context.Context, config Config) (Result, error) {
 		return Result{Path: files.outputPath, Status: StatusReused, Images: len(files.images)}, nil
 	}
 
+	voiceVolume, err := voiceVolumeFromConfig(config.VoiceVolume)
+	if err != nil {
+		return Result{}, err
+	}
+	logger.Info("using render voice volume", "voice_volume", voiceVolume)
+
 	duration, err := ProbeDuration(ctx, commandOrDefault(config.FFprobePath, defaultFFprobePath), files.audioPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("probe voice.mp3 duration: %w", err)
@@ -92,6 +101,7 @@ func RenderFromFiles(ctx context.Context, config Config) (Result, error) {
 		filepath.Base(files.outputPath),
 		framesPerImage,
 		duration,
+		voiceVolume,
 	)
 	if err := runCommand(ctx, files.outputDir, commandOrDefault(config.FFmpegPath, defaultFFmpegPath), args); err != nil {
 		return Result{}, fmt.Errorf("run ffmpeg: %w", err)
@@ -106,6 +116,7 @@ func RenderFromFiles(ctx context.Context, config Config) (Result, error) {
 		"images", len(files.images),
 		"duration", duration.String(),
 		"duration_per_image", durationPerImage.String(),
+		"voice_volume", voiceVolume,
 	)
 	return Result{
 		Path:             files.outputPath,
@@ -255,7 +266,7 @@ func writeConcatFile(outputDir string, images []string) (string, error) {
 	return tempPath, nil
 }
 
-func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, outputFile string, framesPerImage int, duration time.Duration) []string {
+func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, outputFile string, framesPerImage int, duration time.Duration, voiceVolume float64) []string {
 	videoFilter := fmt.Sprintf(
 		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,setsar=1,zoompan=z='min(zoom+0.0004,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=%d:s=%dx%d:fps=%d,subtitles=%s,format=yuv420p",
 		outputWidth,
@@ -278,7 +289,7 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 		"-i", concatFile,
 		"-i", audioFile,
 		"-vf", videoFilter,
-		"-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+		"-af", fmt.Sprintf("volume=%s", formatVolume(voiceVolume)),
 		"-map", "0:v:0",
 		"-map", "1:a:0",
 		"-r", strconv.Itoa(outputFPS),
@@ -295,6 +306,40 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 
 func formatSeconds(duration time.Duration) string {
 	return fmt.Sprintf("%.3f", duration.Seconds())
+}
+
+func VoiceVolumeFromEnv() (float64, error) {
+	return parseVoiceVolume(os.Getenv(EnvVoiceVolume))
+}
+
+func parseVoiceVolume(value string) (float64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return DefaultVoiceVolume, nil
+	}
+
+	volume, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a positive number; got %q", EnvVoiceVolume, value)
+	}
+	if volume <= 0 {
+		return 0, fmt.Errorf("%s must be greater than 0; got %s", EnvVoiceVolume, value)
+	}
+	return volume, nil
+}
+
+func voiceVolumeFromConfig(value float64) (float64, error) {
+	if value != 0 {
+		if value <= 0 {
+			return 0, fmt.Errorf("render voice volume must be greater than 0; got %s", formatVolume(value))
+		}
+		return value, nil
+	}
+	return VoiceVolumeFromEnv()
+}
+
+func formatVolume(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
 func runCommand(ctx context.Context, dir string, name string, args []string) error {

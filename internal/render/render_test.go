@@ -109,10 +109,10 @@ func TestWriteConcatFile(t *testing.T) {
 }
 
 func TestBuildFFmpegArgs(t *testing.T) {
-	args := strings.Join(buildFFmpegArgs("concat.txt", "voice.mp3", "captions.srt", "final.mp4", 45, 1500*time.Millisecond), " ")
+	args := strings.Join(buildFFmpegArgs("concat.txt", "voice.mp3", "captions.srt", "final.mp4", 45, 1500*time.Millisecond, 2.5), " ")
 	assertContains(t, args, "-c:v libx264")
 	assertContains(t, args, "-c:a aac")
-	assertContains(t, args, "-af loudnorm=I=-16:TP=-1.5:LRA=11")
+	assertContains(t, args, "-af volume=2.5")
 	assertContains(t, args, "-map 0:v:0 -map 1:a:0")
 	assertContains(t, args, "-t 1.500")
 	assertContains(t, args, "scale=1080:1920")
@@ -120,6 +120,40 @@ func TestBuildFFmpegArgs(t *testing.T) {
 	assertContains(t, args, ":d=45:")
 	assertContains(t, args, "subtitles=captions.srt")
 	assertContains(t, args, "final.mp4")
+}
+
+func TestParseVoiceVolume(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    float64
+		wantErr bool
+	}{
+		{name: "empty default", input: "", want: DefaultVoiceVolume},
+		{name: "valid", input: "2.5", want: 2.5},
+		{name: "trims", input: " 1.25 ", want: 1.25},
+		{name: "zero invalid", input: "0", wantErr: true},
+		{name: "negative invalid", input: "-1", wantErr: true},
+		{name: "text invalid", input: "loud", wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := parseVoiceVolume(test.input)
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("volume = %v, want %v", got, test.want)
+			}
+		})
+	}
 }
 
 func writeTestFile(t *testing.T, path string, content string) {
