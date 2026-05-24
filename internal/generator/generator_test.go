@@ -29,6 +29,11 @@ func TestShouldForceBaseSteps(t *testing.T) {
 			want:   false,
 		},
 		{
+			name:   "force render captions only",
+			config: Config{Force: true, RenderCaptions: true},
+			want:   false,
+		},
+		{
 			name:   "force voice and images",
 			config: Config{Force: true, GenerateVoice: true, GenerateImages: true},
 			want:   false,

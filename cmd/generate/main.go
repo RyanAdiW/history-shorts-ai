@@ -36,15 +36,16 @@ func run(logger *slog.Logger) error {
 	}
 
 	var (
-		topic     = flag.String("topic", "", "history topic to generate")
-		promptDir = flag.String("prompts", defaultPromptDir, "directory containing prompt templates")
-		outputDir = flag.String("output", defaultOutputDir, "directory where generated artifacts are written")
-		model     = flag.String("model", cfg.OpenAIModel, "OpenAI model to use")
-		voice     = flag.Bool("voice", false, "generate output voice.mp3 from script.txt")
-		images    = flag.Bool("images", false, "generate output images from image_prompts.json")
-		captions  = flag.Bool("captions", false, "generate output captions.srt from script.txt and voice.mp3")
-		render    = flag.Bool("render", false, "render output final.mp4 from images, voice.mp3, and captions.srt")
-		force     = flag.Bool("force", false, "regenerate and overwrite existing output files")
+		topic          = flag.String("topic", "", "history topic to generate")
+		promptDir      = flag.String("prompts", defaultPromptDir, "directory containing prompt templates")
+		outputDir      = flag.String("output", defaultOutputDir, "directory where generated artifacts are written")
+		model          = flag.String("model", cfg.OpenAIModel, "OpenAI model to use")
+		voice          = flag.Bool("voice", false, "generate output voice.mp3 from script.txt")
+		images         = flag.Bool("images", false, "generate output images from image_prompts.json")
+		captions       = flag.Bool("captions", false, "generate output captions.srt from script.txt and voice.mp3")
+		render         = flag.Bool("render", false, "render output final.mp4 from images and voice.mp3")
+		renderCaptions = flag.Bool("render-captions", false, "burn captions.srt into final.mp4 when rendering")
+		force          = flag.Bool("force", false, "regenerate and overwrite existing output files")
 	)
 	flag.Parse()
 
@@ -74,6 +75,7 @@ func run(logger *slog.Logger) error {
 		GenerateImages:           *images,
 		GenerateCaptions:         *captions,
 		GenerateRender:           *render,
+		RenderCaptions:           *renderCaptions,
 		Force:                    *force,
 		Logger:                   logger,
 		Progress: func(step string) {

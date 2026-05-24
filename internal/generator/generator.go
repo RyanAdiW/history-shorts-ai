@@ -31,6 +31,7 @@ type Config struct {
 	GenerateImages           bool
 	GenerateCaptions         bool
 	GenerateRender           bool
+	RenderCaptions           bool
 	Force                    bool
 	Logger                   *slog.Logger
 	Progress                 func(step string)
@@ -125,7 +126,7 @@ func shouldForceBaseSteps(config Config) bool {
 	if !config.Force {
 		return false
 	}
-	return !config.GenerateVoice && !config.GenerateImages && !config.GenerateCaptions && !config.GenerateRender
+	return !config.GenerateVoice && !config.GenerateImages && !config.GenerateCaptions && !config.GenerateRender && !config.RenderCaptions
 }
 
 func generateVoiceover(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
@@ -189,6 +190,7 @@ func renderVideo(ctx context.Context, config Config, writer output.Writer, logge
 		AudioPath:    writer.Path("voice.mp3"),
 		CaptionsPath: writer.Path("captions.srt"),
 		OutputPath:   writer.Path("final.mp4"),
+		BurnCaptions: config.RenderCaptions,
 		Force:        config.Force,
 		Logger:       logger,
 	}); err != nil {

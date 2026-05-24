@@ -75,11 +75,34 @@ func TestValidateInputsMissingCaptions(t *testing.T) {
 		AudioPath:    filepath.Join(dir, "voice.mp3"),
 		CaptionsPath: filepath.Join(dir, "captions.srt"),
 		OutputPath:   filepath.Join(dir, "final.mp4"),
+		BurnCaptions: true,
 	})
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	assertContains(t, err.Error(), "captions.srt is missing")
+}
+
+func TestValidateInputsAllowsMissingCaptionsByDefault(t *testing.T) {
+	dir := t.TempDir()
+	imagesDir := filepath.Join(dir, "images")
+	if err := os.MkdirAll(imagesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(imagesDir, "01.png"), "png")
+	writeTestFile(t, filepath.Join(dir, "voice.mp3"), "mp3")
+
+	files, err := validateInputs(Config{
+		ImagesDir:  imagesDir,
+		AudioPath:  filepath.Join(dir, "voice.mp3"),
+		OutputPath: filepath.Join(dir, "final.mp4"),
+	})
+	if err != nil {
+		t.Fatalf("validateInputs returned error: %v", err)
+	}
+	if files.captionsPath != "" {
+		t.Fatalf("captions path = %q, want empty", files.captionsPath)
+	}
 }
 
 func TestWriteConcatFile(t *testing.T) {
@@ -108,7 +131,21 @@ func TestWriteConcatFile(t *testing.T) {
 	assertContains(t, got, "file 'images/02.png'\n")
 }
 
-func TestBuildFFmpegArgs(t *testing.T) {
+func TestBuildFFmpegArgsWithoutCaptions(t *testing.T) {
+	args := strings.Join(buildFFmpegArgs("concat.txt", "voice.mp3", "", "final.mp4", 45, 1500*time.Millisecond, 2.5), " ")
+	assertContains(t, args, "-c:v libx264")
+	assertContains(t, args, "-c:a aac")
+	assertContains(t, args, "-af volume=2.5")
+	assertContains(t, args, "-map 0:v:0 -map 1:a:0")
+	assertContains(t, args, "-t 1.500")
+	assertContains(t, args, "scale=1080:1920")
+	assertContains(t, args, "zoompan=")
+	assertContains(t, args, ":d=45:")
+	assertNotContains(t, args, "subtitles=")
+	assertContains(t, args, "final.mp4")
+}
+
+func TestBuildFFmpegArgsWithCaptions(t *testing.T) {
 	args := strings.Join(buildFFmpegArgs("concat.txt", "voice.mp3", "captions.srt", "final.mp4", 45, 1500*time.Millisecond, 2.5), " ")
 	assertContains(t, args, "-c:v libx264")
 	assertContains(t, args, "-c:a aac")
@@ -167,5 +204,12 @@ func assertContains(t *testing.T, value string, substring string) {
 	t.Helper()
 	if !strings.Contains(value, substring) {
 		t.Fatalf("%q does not contain %q", value, substring)
+	}
+}
+
+func assertNotContains(t *testing.T, value string, substring string) {
+	t.Helper()
+	if strings.Contains(value, substring) {
+		t.Fatalf("%q contains %q", value, substring)
 	}
 }

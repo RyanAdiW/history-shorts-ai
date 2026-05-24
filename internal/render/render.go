@@ -37,6 +37,7 @@ type Config struct {
 	AudioPath    string
 	CaptionsPath string
 	OutputPath   string
+	BurnCaptions bool
 	Force        bool
 	FFmpegPath   string
 	FFprobePath  string
@@ -78,6 +79,11 @@ func RenderFromFiles(ctx context.Context, config Config) (Result, error) {
 		return Result{}, err
 	}
 	logger.Info("using render voice volume", "voice_volume", voiceVolume)
+	if config.BurnCaptions {
+		logger.Info("burning captions into rendered video", "captions_file", files.captionsPath)
+	} else {
+		logger.Info("rendering video without burned captions")
+	}
 
 	duration, err := ProbeDuration(ctx, commandOrDefault(config.FFprobePath, defaultFFprobePath), files.audioPath)
 	if err != nil {
@@ -97,7 +103,7 @@ func RenderFromFiles(ctx context.Context, config Config) (Result, error) {
 	args := buildFFmpegArgs(
 		filepath.Base(concatPath),
 		filepath.Base(files.audioPath),
-		filepath.Base(files.captionsPath),
+		captionFilterPath(files.captionsPath),
 		filepath.Base(files.outputPath),
 		framesPerImage,
 		duration,
@@ -117,6 +123,7 @@ func RenderFromFiles(ctx context.Context, config Config) (Result, error) {
 		"duration", duration.String(),
 		"duration_per_image", durationPerImage.String(),
 		"voice_volume", voiceVolume,
+		"burn_captions", config.BurnCaptions,
 	)
 	return Result{
 		Path:             files.outputPath,
@@ -173,12 +180,15 @@ func validateInputs(config Config) (inputFiles, error) {
 		return inputFiles{}, err
 	}
 
-	captionsPath := strings.TrimSpace(config.CaptionsPath)
-	if captionsPath == "" {
-		return inputFiles{}, errors.New("captions.srt path is empty")
-	}
-	if err := requireFile(captionsPath, "captions.srt"); err != nil {
-		return inputFiles{}, err
+	var captionsPath string
+	if config.BurnCaptions {
+		captionsPath = strings.TrimSpace(config.CaptionsPath)
+		if captionsPath == "" {
+			return inputFiles{}, errors.New("captions.srt path is empty")
+		}
+		if err := requireFile(captionsPath, "captions.srt"); err != nil {
+			return inputFiles{}, err
+		}
 	}
 
 	outputDir := filepath.Dir(outputPath)
@@ -186,10 +196,15 @@ func validateInputs(config Config) (inputFiles, error) {
 		return inputFiles{}, fmt.Errorf("create render output directory %s: %w", outputDir, err)
 	}
 
+	cleanCaptionsPath := ""
+	if captionsPath != "" {
+		cleanCaptionsPath = filepath.Clean(captionsPath)
+	}
+
 	return inputFiles{
 		images:       images,
 		audioPath:    filepath.Clean(audioPath),
-		captionsPath: filepath.Clean(captionsPath),
+		captionsPath: cleanCaptionsPath,
 		outputPath:   filepath.Clean(outputPath),
 		outputDir:    outputDir,
 	}, nil
@@ -268,7 +283,7 @@ func writeConcatFile(outputDir string, images []string) (string, error) {
 
 func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, outputFile string, framesPerImage int, duration time.Duration, voiceVolume float64) []string {
 	videoFilter := fmt.Sprintf(
-		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,setsar=1,zoompan=z='min(zoom+0.0004,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=%d:s=%dx%d:fps=%d,subtitles=%s,format=yuv420p",
+		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,setsar=1,zoompan=z='min(zoom+0.0004,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=%d:s=%dx%d:fps=%d",
 		outputWidth,
 		outputHeight,
 		outputWidth,
@@ -277,8 +292,11 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 		outputWidth,
 		outputHeight,
 		outputFPS,
-		escapeFilterPath(captionsFile),
 	)
+	if captionsFile != "" {
+		videoFilter += fmt.Sprintf(",subtitles=%s", escapeFilterPath(captionsFile))
+	}
+	videoFilter += ",format=yuv420p"
 
 	return []string{
 		"-y",
@@ -302,6 +320,13 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 		"-movflags", "+faststart",
 		outputFile,
 	}
+}
+
+func captionFilterPath(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return ""
+	}
+	return filepath.Base(path)
 }
 
 func formatSeconds(duration time.Duration) string {

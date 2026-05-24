@@ -69,7 +69,20 @@ By default, rerunning the same topic reuses existing output files and only gener
 
 `--captions` creates `captions.srt` by transcribing `voice.mp3` and using the returned timestamp segments. `script.txt` is used only as a transcription prompt/fallback source if timestamp segments are unavailable. If `captions.srt` already exists, it is reused unless `--force` is passed; run captions with `--force` whenever `voice.mp3` changes.
 
-`--render` creates `final.mp4` from `images/*.png`, `voice.mp3`, and `captions.srt` using FFmpeg. It renders a 1080x1920, 30 fps H.264/AAC MP4, boosts the voiceover volume with `VIDEO_VOICE_VOLUME`, and reuses an existing `final.mp4` unless `--force` is passed. If `voice.mp3` changes, regenerate captions and the video with `--force` so `captions.srt` uses the current audio timing.
+`--render` creates `final.mp4` from `images/*.png` and `voice.mp3` using FFmpeg. It renders a 1080x1920, 30 fps H.264/AAC MP4, boosts the voiceover volume with `VIDEO_VOICE_VOLUME`, and reuses an existing `final.mp4` unless `--force` is passed. Captions are not burned into the video by default.
+
+Pass `--render-captions` with `--render` to burn `captions.srt` into `final.mp4`:
+
+```bash
+go run cmd/generate/main.go \
+  --topic "The shortest war in history" \
+  --render \
+  --render-captions
+```
+
+If `final.mp4` already exists, pass `--force` when switching between captioned and non-captioned renders.
+
+If `voice.mp3` changes, regenerate captions and the video with `--force` so `captions.srt` uses the current audio timing.
 
 Optional flags:
 
@@ -94,6 +107,7 @@ make generate TOPIC="Why Did Alexander the Great Die at Just 32?" VOICE=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" IMAGES=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" CAPTIONS=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" RENDER=1
+make generate TOPIC="Why Did Alexander the Great Die at Just 32?" RENDER=1 RENDER_CAPTIONS=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" FORCE=1
 make test
 make fmt
