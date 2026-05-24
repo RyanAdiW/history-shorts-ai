@@ -67,7 +67,7 @@ By default, rerunning the same topic reuses existing output files and only gener
 
 `--captions` creates `captions.srt` from `script.txt` and the estimated duration of `voice.mp3`. If `captions.srt` already exists, it is reused unless `--force` is passed.
 
-`--render` creates `final.mp4` from `images/*.png`, `voice.mp3`, and `captions.srt` using FFmpeg. It renders a 1080x1920, 30 fps H.264/AAC MP4 and reuses an existing `final.mp4` unless `--force` is passed.
+`--render` creates `final.mp4` from `images/*.png`, `voice.mp3`, and `captions.srt` using FFmpeg. It renders a 1080x1920, 30 fps H.264/AAC MP4, normalizes the voiceover volume, and reuses an existing `final.mp4` unless `--force` is passed. If `voice.mp3` changes, regenerate captions and the video with `--force` so `captions.srt` uses the current audio timing.
 
 Optional flags:
 

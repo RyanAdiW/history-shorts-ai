@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFindImagesSortsPNGs(t *testing.T) {
@@ -108,9 +109,12 @@ func TestWriteConcatFile(t *testing.T) {
 }
 
 func TestBuildFFmpegArgs(t *testing.T) {
-	args := strings.Join(buildFFmpegArgs("concat.txt", "voice.mp3", "captions.srt", "final.mp4", 45), " ")
+	args := strings.Join(buildFFmpegArgs("concat.txt", "voice.mp3", "captions.srt", "final.mp4", 45, 1500*time.Millisecond), " ")
 	assertContains(t, args, "-c:v libx264")
 	assertContains(t, args, "-c:a aac")
+	assertContains(t, args, "-af loudnorm=I=-16:TP=-1.5:LRA=11")
+	assertContains(t, args, "-map 0:v:0 -map 1:a:0")
+	assertContains(t, args, "-t 1.500")
 	assertContains(t, args, "scale=1080:1920")
 	assertContains(t, args, "zoompan=")
 	assertContains(t, args, ":d=45:")
