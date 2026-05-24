@@ -296,7 +296,10 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 	if captionsFile != "" {
 		videoFilter += fmt.Sprintf(",subtitles=%s", escapeFilterPath(captionsFile))
 	}
+	videoFilter += ":force_style='Alignment=2,MarginV=70,FontSize=11,Outline=1,Shadow=1'"
 	videoFilter += ",format=yuv420p"
+
+	fmt.Printf("videoFilter: %s\n", videoFilter)
 
 	return []string{
 		"-y",
