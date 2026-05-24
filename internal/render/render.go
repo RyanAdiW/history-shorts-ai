@@ -299,8 +299,6 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 	videoFilter += ":force_style='Alignment=2,MarginV=70,FontSize=11,Outline=1,Shadow=1'"
 	videoFilter += ",format=yuv420p"
 
-	fmt.Printf("videoFilter: %s\n", videoFilter)
-
 	return []string{
 		"-y",
 		"-hide_banner",
