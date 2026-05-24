@@ -43,6 +43,7 @@ func run(logger *slog.Logger) error {
 		voice     = flag.Bool("voice", false, "generate output voice.mp3 from script.txt")
 		images    = flag.Bool("images", false, "generate output images from image_prompts.json")
 		captions  = flag.Bool("captions", false, "generate output captions.srt from script.txt and voice.mp3")
+		render    = flag.Bool("render", false, "render output final.mp4 from images, voice.mp3, and captions.srt")
 		force     = flag.Bool("force", false, "regenerate and overwrite existing output files")
 	)
 	flag.Parse()
@@ -71,6 +72,7 @@ func run(logger *slog.Logger) error {
 		GenerateVoice:      *voice,
 		GenerateImages:     *images,
 		GenerateCaptions:   *captions,
+		GenerateRender:     *render,
 		Force:              *force,
 		Logger:             logger,
 		Progress: func(step string) {
