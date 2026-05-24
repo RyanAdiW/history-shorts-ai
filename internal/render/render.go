@@ -91,6 +91,7 @@ func RenderFromFiles(ctx context.Context, config Config) (Result, error) {
 		filepath.Base(files.captionsPath),
 		filepath.Base(files.outputPath),
 		framesPerImage,
+		duration,
 	)
 	if err := runCommand(ctx, files.outputDir, commandOrDefault(config.FFmpegPath, defaultFFmpegPath), args); err != nil {
 		return Result{}, fmt.Errorf("run ffmpeg: %w", err)
@@ -254,7 +255,7 @@ func writeConcatFile(outputDir string, images []string) (string, error) {
 	return tempPath, nil
 }
 
-func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, outputFile string, framesPerImage int) []string {
+func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, outputFile string, framesPerImage int, duration time.Duration) []string {
 	videoFilter := fmt.Sprintf(
 		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,setsar=1,zoompan=z='min(zoom+0.0004,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=%d:s=%dx%d:fps=%d,subtitles=%s,format=yuv420p",
 		outputWidth,
@@ -277,7 +278,11 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 		"-i", concatFile,
 		"-i", audioFile,
 		"-vf", videoFilter,
+		"-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+		"-map", "0:v:0",
+		"-map", "1:a:0",
 		"-r", strconv.Itoa(outputFPS),
+		"-t", formatSeconds(duration),
 		"-c:v", "libx264",
 		"-pix_fmt", "yuv420p",
 		"-c:a", "aac",
@@ -286,6 +291,10 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 		"-movflags", "+faststart",
 		outputFile,
 	}
+}
+
+func formatSeconds(duration time.Duration) string {
+	return fmt.Sprintf("%.3f", duration.Seconds())
 }
 
 func runCommand(ctx context.Context, dir string, name string, args []string) error {
