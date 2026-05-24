@@ -151,7 +151,16 @@ func TestGenerateFromFilesMissingVoice(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	assertContains(t, err.Error(), "voice.mp3 is missing")
+	assertContains(t, err.Error(), "caption transcription source is missing")
+}
+
+func TestTranscriptionContentTypeSupportsVideo(t *testing.T) {
+	if got := transcriptionContentType("raw.mp4"); got != "video/mp4" {
+		t.Fatalf("content type = %q, want video/mp4", got)
+	}
+	if got := transcriptionContentType("voice.mp3"); got != "audio/mpeg" {
+		t.Fatalf("content type = %q, want audio/mpeg", got)
+	}
 }
 
 func TestMP3Duration(t *testing.T) {

@@ -47,6 +47,7 @@ output/alexander-the-great/
 |   |-- 02.png
 |   `-- 03.png
 |-- voice.mp3
+|-- raw.mp4
 |-- captions.srt
 `-- final.mp4
 ```
@@ -67,9 +68,17 @@ Script
 
 By default, rerunning the same topic reuses existing output files and only generates missing files. Pass `--force` to regenerate and overwrite existing files.
 
-`--captions` creates `captions.srt` by transcribing `voice.mp3` and using the returned timestamp segments. `script.txt` is used only as a transcription prompt/fallback source if timestamp segments are unavailable. If `captions.srt` already exists, it is reused unless `--force` is passed; run captions with `--force` whenever `voice.mp3` changes.
+`--captions` creates `captions.srt` by transcribing `raw.mp4` when it exists, falling back to `voice.mp3` when it does not. The captions use returned transcription timestamp segments; `script.txt` is used only as a transcription prompt/fallback source if timestamp segments are unavailable. If `captions.srt` already exists, it is reused unless `--force` is passed.
 
-`--render` creates `final.mp4` from `images/*.png`, `voice.mp3`, and `captions.srt` using FFmpeg. It renders a 1080x1920, 30 fps H.264/AAC MP4, boosts the voiceover volume with `VIDEO_VOICE_VOLUME`, and reuses an existing `final.mp4` unless `--force` is passed. If `voice.mp3` changes, regenerate captions and the video with `--force` so `captions.srt` uses the current audio timing.
+`--render` uses a two-pass FFmpeg flow. It first creates `raw.mp4` from `images/*.png` and `voice.mp3` with no burned captions, boosts the voiceover volume with `VIDEO_VOICE_VOLUME`, and reuses an existing `raw.mp4` unless `--force` is passed. If `captions.srt` exists, it then burns those captions into `raw.mp4` to create `final.mp4`; if captions are missing, it leaves `raw.mp4` in place and logs that final rendering was skipped.
+
+For synced captions, run render once to produce `raw.mp4`, run captions with `--force`, then render again:
+
+```bash
+go run cmd/generate/main.go --topic "The Shortest War in History" --render
+go run cmd/generate/main.go --topic "The Shortest War in History" --captions --force
+go run cmd/generate/main.go --topic "The Shortest War in History" --render --force
+```
 
 Optional flags:
 

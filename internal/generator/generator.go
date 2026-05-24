@@ -110,11 +110,24 @@ func Generate(ctx context.Context, config Config) (string, error) {
 	if err := generateVoiceover(ctx, config, writer, logger); err != nil {
 		return "", err
 	}
+	rawRendered := false
+	if config.GenerateRender && config.GenerateCaptions {
+		if err := renderRawVideo(ctx, config, writer, logger); err != nil {
+			return "", err
+		}
+		rawRendered = true
+	}
 	if err := generateCaptions(ctx, config, writer, logger); err != nil {
 		return "", err
 	}
-	if err := renderVideo(ctx, config, writer, logger); err != nil {
-		return "", err
+	if rawRendered {
+		if err := renderFinalVideo(ctx, config, writer, logger); err != nil {
+			return "", err
+		}
+	} else {
+		if err := renderVideo(ctx, config, writer, logger); err != nil {
+			return "", err
+		}
 	}
 
 	return writer.Dir(), nil
@@ -151,9 +164,13 @@ func generateCaptions(ctx context.Context, config Config, writer output.Writer, 
 	if config.Force || !writer.Exists("captions.srt") {
 		reportProgress(config, "captions")
 	}
+	captionSource := writer.Path("voice.mp3")
+	if writer.Exists("raw.mp4") {
+		captionSource = writer.Path("raw.mp4")
+	}
 	if _, err := caption.GenerateFromFiles(ctx, caption.Config{
 		ScriptPath:               writer.Path("script.txt"),
-		AudioPath:                writer.Path("voice.mp3"),
+		AudioPath:                captionSource,
 		OutputPath:               writer.Path("captions.srt"),
 		OpenAIAPIKey:             config.OpenAIAPIKey,
 		OpenAITranscriptionModel: config.OpenAITranscriptionModel,
@@ -177,15 +194,57 @@ func renderVideo(ctx context.Context, config Config, writer output.Writer, logge
 		reportProgress(config, "video render")
 	}
 	if _, err := render.RenderFromFiles(ctx, render.Config{
-		ImagesDir:    writer.Path("images"),
-		AudioPath:    writer.Path("voice.mp3"),
-		CaptionsPath: writer.Path("captions.srt"),
-		OutputPath:   writer.Path("final.mp4"),
-		Force:        config.Force,
-		Logger:       logger,
+		ImagesDir:     writer.Path("images"),
+		AudioPath:     writer.Path("voice.mp3"),
+		CaptionsPath:  writer.Path("captions.srt"),
+		RawOutputPath: writer.Path("raw.mp4"),
+		OutputPath:    writer.Path("final.mp4"),
+		Force:         config.Force,
+		Logger:        logger,
 	}); err != nil {
 		wrapped := fmt.Errorf("render video: %w", err)
 		logger.Error("failed to render video", "error", wrapped)
+		return wrapped
+	}
+	return nil
+}
+
+func renderRawVideo(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
+	if config.Force || !writer.Exists("raw.mp4") {
+		reportProgress(config, "raw video render")
+	}
+	if _, _, _, err := render.RenderRawFromFiles(ctx, render.Config{
+		ImagesDir:     writer.Path("images"),
+		AudioPath:     writer.Path("voice.mp3"),
+		RawOutputPath: writer.Path("raw.mp4"),
+		Force:         config.Force,
+		Logger:        logger,
+	}); err != nil {
+		wrapped := fmt.Errorf("render raw video: %w", err)
+		logger.Error("failed to render raw video", "error", wrapped)
+		return wrapped
+	}
+	return nil
+}
+
+func renderFinalVideo(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
+	if !writer.Exists("captions.srt") {
+		logger.Info("skipped final video render", "reason", "captions.srt is missing", "captions_file", writer.Path("captions.srt"))
+		return nil
+	}
+
+	if config.Force || !writer.Exists("final.mp4") {
+		reportProgress(config, "final video render")
+	}
+	if _, err := render.RenderFinalFromFiles(ctx, render.Config{
+		RawOutputPath: writer.Path("raw.mp4"),
+		CaptionsPath:  writer.Path("captions.srt"),
+		OutputPath:    writer.Path("final.mp4"),
+		Force:         config.Force,
+		Logger:        logger,
+	}); err != nil {
+		wrapped := fmt.Errorf("render final video: %w", err)
+		logger.Error("failed to render final video", "error", wrapped)
 		return wrapped
 	}
 	return nil

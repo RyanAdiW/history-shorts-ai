@@ -28,11 +28,10 @@ func TestFindImagesSortsPNGs(t *testing.T) {
 
 func TestValidateInputsMissingImagesDir(t *testing.T) {
 	dir := t.TempDir()
-	_, err := validateInputs(Config{
-		ImagesDir:    filepath.Join(dir, "images"),
-		AudioPath:    filepath.Join(dir, "voice.mp3"),
-		CaptionsPath: filepath.Join(dir, "captions.srt"),
-		OutputPath:   filepath.Join(dir, "final.mp4"),
+	_, err := validateRawInputs(Config{
+		ImagesDir:     filepath.Join(dir, "images"),
+		AudioPath:     filepath.Join(dir, "voice.mp3"),
+		RawOutputPath: filepath.Join(dir, "raw.mp4"),
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -47,13 +46,11 @@ func TestValidateInputsMissingVoice(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestFile(t, filepath.Join(imagesDir, "01.png"), "png")
-	writeTestFile(t, filepath.Join(dir, "captions.srt"), "1\n")
 
-	_, err := validateInputs(Config{
-		ImagesDir:    imagesDir,
-		AudioPath:    filepath.Join(dir, "voice.mp3"),
-		CaptionsPath: filepath.Join(dir, "captions.srt"),
-		OutputPath:   filepath.Join(dir, "final.mp4"),
+	_, err := validateRawInputs(Config{
+		ImagesDir:     imagesDir,
+		AudioPath:     filepath.Join(dir, "voice.mp3"),
+		RawOutputPath: filepath.Join(dir, "raw.mp4"),
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -61,20 +58,28 @@ func TestValidateInputsMissingVoice(t *testing.T) {
 	assertContains(t, err.Error(), "voice.mp3 is missing")
 }
 
-func TestValidateInputsMissingCaptions(t *testing.T) {
+func TestValidateFinalInputsMissingRaw(t *testing.T) {
 	dir := t.TempDir()
-	imagesDir := filepath.Join(dir, "images")
-	if err := os.MkdirAll(imagesDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeTestFile(t, filepath.Join(imagesDir, "01.png"), "png")
-	writeTestFile(t, filepath.Join(dir, "voice.mp3"), "mp3")
 
-	_, err := validateInputs(Config{
-		ImagesDir:    imagesDir,
-		AudioPath:    filepath.Join(dir, "voice.mp3"),
-		CaptionsPath: filepath.Join(dir, "captions.srt"),
-		OutputPath:   filepath.Join(dir, "final.mp4"),
+	_, err := validateFinalInputs(Config{
+		RawOutputPath: filepath.Join(dir, "raw.mp4"),
+		CaptionsPath:  filepath.Join(dir, "captions.srt"),
+		OutputPath:    filepath.Join(dir, "final.mp4"),
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	assertContains(t, err.Error(), "raw.mp4 is missing")
+}
+
+func TestValidateFinalInputsMissingCaptions(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "raw.mp4"), "mp4")
+
+	_, err := validateFinalInputs(Config{
+		RawOutputPath: filepath.Join(dir, "raw.mp4"),
+		CaptionsPath:  filepath.Join(dir, "captions.srt"),
+		OutputPath:    filepath.Join(dir, "final.mp4"),
 	})
 	if err == nil {
 		t.Fatal("expected error")
@@ -108,8 +113,8 @@ func TestWriteConcatFile(t *testing.T) {
 	assertContains(t, got, "file 'images/02.png'\n")
 }
 
-func TestBuildFFmpegArgs(t *testing.T) {
-	args := strings.Join(buildFFmpegArgs("concat.txt", "voice.mp3", "captions.srt", "final.mp4", 45, 1500*time.Millisecond, 2.5), " ")
+func TestBuildRawFFmpegArgs(t *testing.T) {
+	args := strings.Join(buildRawFFmpegArgs("concat.txt", "voice.mp3", "raw.mp4", 45, 1500*time.Millisecond, 2.5), " ")
 	assertContains(t, args, "-c:v libx264")
 	assertContains(t, args, "-c:a aac")
 	assertContains(t, args, "-af volume=2.5")
@@ -118,7 +123,17 @@ func TestBuildFFmpegArgs(t *testing.T) {
 	assertContains(t, args, "scale=1080:1920")
 	assertContains(t, args, "zoompan=")
 	assertContains(t, args, ":d=45:")
+	assertNotContains(t, args, "subtitles=")
+	assertContains(t, args, "raw.mp4")
+}
+
+func TestBuildFinalFFmpegArgs(t *testing.T) {
+	args := strings.Join(buildFinalFFmpegArgs("raw.mp4", "captions.srt", "final.mp4"), " ")
+	assertContains(t, args, "-c:v libx264")
+	assertContains(t, args, "-c:a aac")
+	assertContains(t, args, "-map 0:v:0 -map 0:a:0")
 	assertContains(t, args, "subtitles=captions.srt")
+	assertContains(t, args, "raw.mp4")
 	assertContains(t, args, "final.mp4")
 }
 
@@ -167,5 +182,12 @@ func assertContains(t *testing.T, value string, substring string) {
 	t.Helper()
 	if !strings.Contains(value, substring) {
 		t.Fatalf("%q does not contain %q", value, substring)
+	}
+}
+
+func assertNotContains(t *testing.T, value string, substring string) {
+	t.Helper()
+	if strings.Contains(value, substring) {
+		t.Fatalf("%q contains %q", value, substring)
 	}
 }

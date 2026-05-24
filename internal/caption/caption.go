@@ -87,7 +87,7 @@ func NewOpenAITranscriber(apiKey string, model string, logger *slog.Logger) Open
 func (t OpenAITranscriber) Transcribe(ctx context.Context, audioPath string, prompt string) (Transcript, error) {
 	file, err := os.Open(audioPath)
 	if err != nil {
-		return Transcript{}, fmt.Errorf("open voice.mp3 for transcription: %w", err)
+		return Transcript{}, fmt.Errorf("open media for transcription: %w", err)
 	}
 	defer file.Close()
 
@@ -95,7 +95,7 @@ func (t OpenAITranscriber) Transcribe(ctx context.Context, audioPath string, pro
 	defer cancel()
 
 	params := openai.AudioTranscriptionNewParams{
-		File:                   openai.File(file, filepath.Base(audioPath), "audio/mpeg"),
+		File:                   openai.File(file, filepath.Base(audioPath), transcriptionContentType(audioPath)),
 		Model:                  openai.AudioModel(t.model),
 		ResponseFormat:         openai.AudioResponseFormatJSON,
 		TimestampGranularities: []string{"segment"},
@@ -121,6 +121,25 @@ func (t OpenAITranscriber) Transcribe(ctx context.Context, audioPath string, pro
 	return transcript, nil
 }
 
+func transcriptionContentType(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".mp4":
+		return "video/mp4"
+	case ".m4a":
+		return "audio/mp4"
+	case ".wav":
+		return "audio/wav"
+	case ".ogg":
+		return "audio/ogg"
+	case ".webm":
+		return "audio/webm"
+	case ".mp3", ".mpeg", ".mpga":
+		return "audio/mpeg"
+	default:
+		return "application/octet-stream"
+	}
+}
+
 func GenerateFromFiles(ctx context.Context, config Config) (Result, error) {
 	logger := loggerOrDefault(config.Logger)
 	outputPath := strings.TrimSpace(config.OutputPath)
@@ -135,13 +154,13 @@ func GenerateFromFiles(ctx context.Context, config Config) (Result, error) {
 
 	audioPath := strings.TrimSpace(config.AudioPath)
 	if audioPath == "" {
-		return Result{}, errors.New("voice.mp3 path is empty")
+		return Result{}, errors.New("caption transcription source path is empty")
 	}
 	if _, err := os.Stat(audioPath); err != nil {
 		if os.IsNotExist(err) {
-			return Result{}, fmt.Errorf("voice.mp3 is missing at %s", audioPath)
+			return Result{}, fmt.Errorf("caption transcription source is missing at %s", audioPath)
 		}
-		return Result{}, fmt.Errorf("inspect voice.mp3: %w", err)
+		return Result{}, fmt.Errorf("inspect caption transcription source: %w", err)
 	}
 
 	script, err := readOptionalScript(config.ScriptPath)
@@ -152,7 +171,7 @@ func GenerateFromFiles(ctx context.Context, config Config) (Result, error) {
 	if transcriber := transcriberFromConfig(config, logger); transcriber != nil {
 		transcript, err := transcriber.Transcribe(ctx, audioPath, script)
 		if err != nil {
-			return Result{}, fmt.Errorf("transcribe voice.mp3: %w", err)
+			return Result{}, fmt.Errorf("transcribe caption source: %w", err)
 		}
 
 		srt, chunks, duration, err := GenerateSRTFromSegments(transcript.Segments)
@@ -160,7 +179,7 @@ func GenerateFromFiles(ctx context.Context, config Config) (Result, error) {
 			if err := writeSRT(outputPath, srt); err != nil {
 				return Result{}, err
 			}
-			logger.Info("generated captions from transcription", "output_file", outputPath, "chunks", chunks, "duration", duration.String())
+			logger.Info("generated captions from transcription", "source_file", audioPath, "output_file", outputPath, "chunks", chunks, "duration", duration.String())
 			return Result{Path: outputPath, Status: StatusGenerated, Chunks: chunks, Duration: duration, Source: "transcription"}, nil
 		}
 		logger.Warn("transcription did not include usable timestamp segments; falling back to script timing", "error", err)
@@ -172,6 +191,9 @@ func GenerateFromFiles(ctx context.Context, config Config) (Result, error) {
 
 	if strings.TrimSpace(script) == "" {
 		return Result{}, errors.New("script.txt fallback is empty and transcription did not return timestamp segments")
+	}
+	if !isMP3Path(audioPath) {
+		return Result{}, errors.New("transcription did not return timestamp segments and script fallback timing requires voice.mp3")
 	}
 
 	duration, err := MP3Duration(audioPath)
@@ -190,6 +212,15 @@ func GenerateFromFiles(ctx context.Context, config Config) (Result, error) {
 
 	logger.Info("generated captions from script fallback", "output_file", outputPath, "chunks", chunks, "duration", duration.String())
 	return Result{Path: outputPath, Status: StatusGenerated, Chunks: chunks, Duration: duration, Source: "script_fallback"}, nil
+}
+
+func isMP3Path(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".mp3", ".mpeg", ".mpga":
+		return true
+	default:
+		return false
+	}
 }
 
 func GenerateSRT(script string, audioDuration time.Duration) (string, int, error) {

@@ -33,28 +33,42 @@ const (
 )
 
 type Config struct {
-	ImagesDir    string
-	AudioPath    string
-	CaptionsPath string
-	OutputPath   string
-	Force        bool
-	FFmpegPath   string
-	FFprobePath  string
-	VoiceVolume  float64
-	Logger       *slog.Logger
+	ImagesDir     string
+	AudioPath     string
+	CaptionsPath  string
+	RawOutputPath string
+	OutputPath    string
+	Force         bool
+	FFmpegPath    string
+	FFprobePath   string
+	VoiceVolume   float64
+	Logger        *slog.Logger
 }
 
 type Result struct {
-	Path             string
-	Status           Status
-	Images           int
-	Duration         time.Duration
-	DurationPerImage time.Duration
+	Path       string
+	Status     Status
+	Raw        StepResult
+	Final      StepResult
+	Images     int
+	Duration   time.Duration
+	FinalReady bool
 }
 
-type inputFiles struct {
-	images       []string
-	audioPath    string
+type StepResult struct {
+	Path   string
+	Status Status
+}
+
+type rawInputFiles struct {
+	images     []string
+	audioPath  string
+	outputPath string
+	outputDir  string
+}
+
+type finalInputFiles struct {
+	rawPath      string
 	captionsPath string
 	outputPath   string
 	outputDir    string
@@ -63,68 +77,124 @@ type inputFiles struct {
 func RenderFromFiles(ctx context.Context, config Config) (Result, error) {
 	logger := loggerOrDefault(config.Logger)
 
-	files, err := validateInputs(config)
+	rawResult, rawFiles, duration, err := RenderRawFromFiles(ctx, config)
 	if err != nil {
 		return Result{}, err
 	}
 
+	result := Result{
+		Path:     rawResult.Path,
+		Status:   rawResult.Status,
+		Raw:      rawResult,
+		Images:   len(rawFiles.images),
+		Duration: duration,
+	}
+
+	captionsPath := strings.TrimSpace(config.CaptionsPath)
+	if captionsPath == "" || !fileExists(captionsPath) {
+		logger.Info("skipped final video render", "reason", "captions.srt is missing", "captions_file", captionsPath)
+		return result, nil
+	}
+
+	finalResult, err := RenderFinalFromFiles(ctx, config)
+	if err != nil {
+		return Result{}, err
+	}
+	result.Path = finalResult.Path
+	result.Status = finalResult.Status
+	result.Final = finalResult
+	result.FinalReady = true
+	return result, nil
+}
+
+func RenderRawFromFiles(ctx context.Context, config Config) (StepResult, rawInputFiles, time.Duration, error) {
+	logger := loggerOrDefault(config.Logger)
+
+	files, err := validateRawInputs(config)
+	if err != nil {
+		return StepResult{}, rawInputFiles{}, 0, err
+	}
+
 	if !config.Force && fileExists(files.outputPath) {
-		logger.Info("reused rendered video", "output_file", files.outputPath)
-		return Result{Path: files.outputPath, Status: StatusReused, Images: len(files.images)}, nil
+		logger.Info("reused raw video", "output_file", files.outputPath)
+		duration, err := ProbeDuration(ctx, commandOrDefault(config.FFprobePath, defaultFFprobePath), files.audioPath)
+		if err != nil {
+			return StepResult{}, rawInputFiles{}, 0, fmt.Errorf("probe voice.mp3 duration: %w", err)
+		}
+		return StepResult{Path: files.outputPath, Status: StatusReused}, files, duration, nil
 	}
 
 	voiceVolume, err := voiceVolumeFromConfig(config.VoiceVolume)
 	if err != nil {
-		return Result{}, err
+		return StepResult{}, rawInputFiles{}, 0, err
 	}
 	logger.Info("using render voice volume", "voice_volume", voiceVolume)
 
 	duration, err := ProbeDuration(ctx, commandOrDefault(config.FFprobePath, defaultFFprobePath), files.audioPath)
 	if err != nil {
-		return Result{}, fmt.Errorf("probe voice.mp3 duration: %w", err)
+		return StepResult{}, rawInputFiles{}, 0, fmt.Errorf("probe voice.mp3 duration: %w", err)
 	}
 	durationPerImage := duration / time.Duration(len(files.images))
 	if durationPerImage <= 0 {
-		return Result{}, fmt.Errorf("duration per image must be greater than zero, got %s", durationPerImage)
+		return StepResult{}, rawInputFiles{}, 0, fmt.Errorf("duration per image must be greater than zero, got %s", durationPerImage)
 	}
 	framesPerImage := max(1, int(math.Ceil(durationPerImage.Seconds()*outputFPS)))
 
 	concatPath, err := writeConcatFile(files.outputDir, files.images)
 	if err != nil {
-		return Result{}, err
+		return StepResult{}, rawInputFiles{}, 0, err
 	}
 
-	args := buildFFmpegArgs(
+	args := buildRawFFmpegArgs(
 		filepath.Base(concatPath),
 		filepath.Base(files.audioPath),
-		filepath.Base(files.captionsPath),
 		filepath.Base(files.outputPath),
 		framesPerImage,
 		duration,
 		voiceVolume,
 	)
 	if err := runCommand(ctx, files.outputDir, commandOrDefault(config.FFmpegPath, defaultFFmpegPath), args); err != nil {
-		return Result{}, fmt.Errorf("run ffmpeg: %w", err)
+		return StepResult{}, rawInputFiles{}, 0, fmt.Errorf("run ffmpeg raw render: %w", err)
 	}
 	if err := os.Remove(concatPath); err != nil && !os.IsNotExist(err) {
 		logger.Warn("failed to remove temporary render concat file", "path", concatPath, "error", err)
 	}
 
 	logger.Info(
-		"generated rendered video",
+		"generated raw video",
 		"output_file", files.outputPath,
 		"images", len(files.images),
 		"duration", duration.String(),
 		"duration_per_image", durationPerImage.String(),
 		"voice_volume", voiceVolume,
 	)
-	return Result{
-		Path:             files.outputPath,
-		Status:           StatusGenerated,
-		Images:           len(files.images),
-		Duration:         duration,
-		DurationPerImage: durationPerImage,
-	}, nil
+	return StepResult{Path: files.outputPath, Status: StatusGenerated}, files, duration, nil
+}
+
+func RenderFinalFromFiles(ctx context.Context, config Config) (StepResult, error) {
+	logger := loggerOrDefault(config.Logger)
+
+	files, err := validateFinalInputs(config)
+	if err != nil {
+		return StepResult{}, err
+	}
+
+	if !config.Force && fileExists(files.outputPath) {
+		logger.Info("reused final video", "output_file", files.outputPath)
+		return StepResult{Path: files.outputPath, Status: StatusReused}, nil
+	}
+
+	args := buildFinalFFmpegArgs(
+		filepath.Base(files.rawPath),
+		filepath.Base(files.captionsPath),
+		filepath.Base(files.outputPath),
+	)
+	if err := runCommand(ctx, files.outputDir, commandOrDefault(config.FFmpegPath, defaultFFmpegPath), args); err != nil {
+		return StepResult{}, fmt.Errorf("run ffmpeg final render: %w", err)
+	}
+
+	logger.Info("generated final video", "input_file", files.rawPath, "captions_file", files.captionsPath, "output_file", files.outputPath)
+	return StepResult{Path: files.outputPath, Status: StatusGenerated}, nil
 }
 
 func ProbeDuration(ctx context.Context, ffprobePath string, audioPath string) (time.Duration, error) {
@@ -149,46 +219,77 @@ func ProbeDuration(ctx context.Context, ffprobePath string, audioPath string) (t
 	return time.Duration(seconds * float64(time.Second)), nil
 }
 
-func validateInputs(config Config) (inputFiles, error) {
-	outputPath := strings.TrimSpace(config.OutputPath)
+func validateRawInputs(config Config) (rawInputFiles, error) {
+	outputPath := strings.TrimSpace(config.RawOutputPath)
 	if outputPath == "" {
-		return inputFiles{}, errors.New("final.mp4 output path is empty")
+		return rawInputFiles{}, errors.New("raw.mp4 output path is empty")
 	}
 	if info, err := os.Stat(outputPath); err == nil && info.IsDir() {
-		return inputFiles{}, fmt.Errorf("final.mp4 output path %s is a directory", outputPath)
+		return rawInputFiles{}, fmt.Errorf("raw.mp4 output path %s is a directory", outputPath)
 	} else if err != nil && !os.IsNotExist(err) {
-		return inputFiles{}, fmt.Errorf("inspect final.mp4 output path %s: %w", outputPath, err)
+		return rawInputFiles{}, fmt.Errorf("inspect raw.mp4 output path %s: %w", outputPath, err)
 	}
 
 	images, err := findImages(config.ImagesDir)
 	if err != nil {
-		return inputFiles{}, err
+		return rawInputFiles{}, err
 	}
 
 	audioPath := strings.TrimSpace(config.AudioPath)
 	if audioPath == "" {
-		return inputFiles{}, errors.New("voice.mp3 path is empty")
+		return rawInputFiles{}, errors.New("voice.mp3 path is empty")
 	}
 	if err := requireFile(audioPath, "voice.mp3"); err != nil {
-		return inputFiles{}, err
-	}
-
-	captionsPath := strings.TrimSpace(config.CaptionsPath)
-	if captionsPath == "" {
-		return inputFiles{}, errors.New("captions.srt path is empty")
-	}
-	if err := requireFile(captionsPath, "captions.srt"); err != nil {
-		return inputFiles{}, err
+		return rawInputFiles{}, err
 	}
 
 	outputDir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return inputFiles{}, fmt.Errorf("create render output directory %s: %w", outputDir, err)
+		return rawInputFiles{}, fmt.Errorf("create raw render output directory %s: %w", outputDir, err)
 	}
 
-	return inputFiles{
-		images:       images,
-		audioPath:    filepath.Clean(audioPath),
+	return rawInputFiles{
+		images:     images,
+		audioPath:  filepath.Clean(audioPath),
+		outputPath: filepath.Clean(outputPath),
+		outputDir:  outputDir,
+	}, nil
+}
+
+func validateFinalInputs(config Config) (finalInputFiles, error) {
+	rawPath := strings.TrimSpace(config.RawOutputPath)
+	if rawPath == "" {
+		return finalInputFiles{}, errors.New("raw.mp4 path is empty")
+	}
+	if err := requireFile(rawPath, "raw.mp4"); err != nil {
+		return finalInputFiles{}, err
+	}
+
+	captionsPath := strings.TrimSpace(config.CaptionsPath)
+	if captionsPath == "" {
+		return finalInputFiles{}, errors.New("captions.srt path is empty")
+	}
+	if err := requireFile(captionsPath, "captions.srt"); err != nil {
+		return finalInputFiles{}, err
+	}
+
+	outputPath := strings.TrimSpace(config.OutputPath)
+	if outputPath == "" {
+		return finalInputFiles{}, errors.New("final.mp4 output path is empty")
+	}
+	if info, err := os.Stat(outputPath); err == nil && info.IsDir() {
+		return finalInputFiles{}, fmt.Errorf("final.mp4 output path %s is a directory", outputPath)
+	} else if err != nil && !os.IsNotExist(err) {
+		return finalInputFiles{}, fmt.Errorf("inspect final.mp4 output path %s: %w", outputPath, err)
+	}
+
+	outputDir := filepath.Dir(outputPath)
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return finalInputFiles{}, fmt.Errorf("create final render output directory %s: %w", outputDir, err)
+	}
+
+	return finalInputFiles{
+		rawPath:      filepath.Clean(rawPath),
 		captionsPath: filepath.Clean(captionsPath),
 		outputPath:   filepath.Clean(outputPath),
 		outputDir:    outputDir,
@@ -266,9 +367,9 @@ func writeConcatFile(outputDir string, images []string) (string, error) {
 	return tempPath, nil
 }
 
-func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, outputFile string, framesPerImage int, duration time.Duration, voiceVolume float64) []string {
+func buildRawFFmpegArgs(concatFile string, audioFile string, outputFile string, framesPerImage int, duration time.Duration, voiceVolume float64) []string {
 	videoFilter := fmt.Sprintf(
-		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,setsar=1,zoompan=z='min(zoom+0.0004,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=%d:s=%dx%d:fps=%d,subtitles=%s,format=yuv420p",
+		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,setsar=1,zoompan=z='min(zoom+0.0004,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=%d:s=%dx%d:fps=%d,format=yuv420p",
 		outputWidth,
 		outputHeight,
 		outputWidth,
@@ -277,7 +378,6 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 		outputWidth,
 		outputHeight,
 		outputFPS,
-		escapeFilterPath(captionsFile),
 	)
 
 	return []string{
@@ -299,6 +399,25 @@ func buildFFmpegArgs(concatFile string, audioFile string, captionsFile string, o
 		"-c:a", "aac",
 		"-b:a", "192k",
 		"-shortest",
+		"-movflags", "+faststart",
+		outputFile,
+	}
+}
+
+func buildFinalFFmpegArgs(rawFile string, captionsFile string, outputFile string) []string {
+	videoFilter := fmt.Sprintf("subtitles=%s,format=yuv420p", escapeFilterPath(captionsFile))
+	return []string{
+		"-y",
+		"-hide_banner",
+		"-loglevel", "error",
+		"-i", rawFile,
+		"-vf", videoFilter,
+		"-map", "0:v:0",
+		"-map", "0:a:0",
+		"-c:v", "libx264",
+		"-pix_fmt", "yuv420p",
+		"-c:a", "aac",
+		"-b:a", "192k",
 		"-movflags", "+faststart",
 		outputFile,
 	}
