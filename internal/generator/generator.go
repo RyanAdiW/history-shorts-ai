@@ -62,8 +62,9 @@ func Generate(ctx context.Context, config Config) (string, error) {
 	}
 
 	current := state{topic: config.Topic}
+	forceBaseSteps := shouldForceBaseSteps(config)
 	for _, step := range steps() {
-		if !config.Force && writer.Exists(step.outputFile) {
+		if !forceBaseSteps && writer.Exists(step.outputFile) {
 			result, err := writer.Read(step.outputFile)
 			if err != nil {
 				logger.Error("failed to reuse existing output", "step", step.name, "output_file", step.outputFile, "error", err)
@@ -118,6 +119,13 @@ func Generate(ctx context.Context, config Config) (string, error) {
 	}
 
 	return writer.Dir(), nil
+}
+
+func shouldForceBaseSteps(config Config) bool {
+	if !config.Force {
+		return false
+	}
+	return !config.GenerateVoice && !config.GenerateImages && !config.GenerateCaptions && !config.GenerateRender
 }
 
 func generateVoiceover(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
