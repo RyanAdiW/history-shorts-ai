@@ -1,6 +1,7 @@
 package caption
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,9 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 const (
+	DefaultTranscriptionModel = "gpt-4o-mini-transcribe"
+
+	requestTimeout     = 10 * time.Minute
 	minWordsPerCaption = 3
 	maxWordsPerCaption = 8
 )
@@ -24,11 +31,14 @@ const (
 )
 
 type Config struct {
-	ScriptPath string
-	AudioPath  string
-	OutputPath string
-	Force      bool
-	Logger     *slog.Logger
+	ScriptPath               string
+	AudioPath                string
+	OutputPath               string
+	OpenAIAPIKey             string
+	OpenAITranscriptionModel string
+	Transcriber              Transcriber
+	Force                    bool
+	Logger                   *slog.Logger
 }
 
 type Result struct {
@@ -36,9 +46,82 @@ type Result struct {
 	Status   Status
 	Chunks   int
 	Duration time.Duration
+	Source   string
 }
 
-func GenerateFromFiles(config Config) (Result, error) {
+type Transcript struct {
+	Text     string
+	Segments []Segment
+}
+
+type Segment struct {
+	Text  string
+	Start time.Duration
+	End   time.Duration
+}
+
+type Caption struct {
+	Text  string
+	Start time.Duration
+	End   time.Duration
+}
+
+type Transcriber interface {
+	Transcribe(ctx context.Context, audioPath string, prompt string) (Transcript, error)
+}
+
+type OpenAITranscriber struct {
+	model  string
+	api    openai.Client
+	logger *slog.Logger
+}
+
+func NewOpenAITranscriber(apiKey string, model string, logger *slog.Logger) OpenAITranscriber {
+	return OpenAITranscriber{
+		model:  valueOrDefault(model, DefaultTranscriptionModel),
+		api:    openai.NewClient(option.WithAPIKey(apiKey)),
+		logger: loggerOrDefault(logger),
+	}
+}
+
+func (t OpenAITranscriber) Transcribe(ctx context.Context, audioPath string, prompt string) (Transcript, error) {
+	file, err := os.Open(audioPath)
+	if err != nil {
+		return Transcript{}, fmt.Errorf("open voice.mp3 for transcription: %w", err)
+	}
+	defer file.Close()
+
+	requestCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	params := openai.AudioTranscriptionNewParams{
+		File:                   openai.File(file, filepath.Base(audioPath), "audio/mpeg"),
+		Model:                  openai.AudioModel(t.model),
+		ResponseFormat:         openai.AudioResponseFormatJSON,
+		TimestampGranularities: []string{"segment"},
+	}
+	if prompt = strings.TrimSpace(prompt); prompt != "" {
+		params.Prompt = openai.String(prompt)
+	}
+
+	resp, err := t.api.Audio.Transcriptions.New(requestCtx, params)
+	if err != nil {
+		t.logger.Error("OpenAI transcription request failed", "model", t.model, "audio_path", audioPath, "error", err)
+		return Transcript{}, err
+	}
+
+	transcript := Transcript{Text: strings.TrimSpace(resp.Text)}
+	for _, segment := range resp.Segments {
+		transcript.Segments = append(transcript.Segments, Segment{
+			Text:  strings.TrimSpace(segment.Text),
+			Start: secondsToDuration(segment.Start),
+			End:   secondsToDuration(segment.End),
+		})
+	}
+	return transcript, nil
+}
+
+func GenerateFromFiles(ctx context.Context, config Config) (Result, error) {
 	logger := loggerOrDefault(config.Logger)
 	outputPath := strings.TrimSpace(config.OutputPath)
 	if outputPath == "" {
@@ -48,22 +131,6 @@ func GenerateFromFiles(config Config) (Result, error) {
 	if !config.Force && fileExists(outputPath) {
 		logger.Info("reused captions", "output_file", outputPath)
 		return Result{Path: outputPath, Status: StatusReused}, nil
-	}
-
-	scriptPath := strings.TrimSpace(config.ScriptPath)
-	if scriptPath == "" {
-		return Result{}, errors.New("script.txt path is empty")
-	}
-	scriptBytes, err := os.ReadFile(scriptPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return Result{}, fmt.Errorf("script.txt is missing at %s", scriptPath)
-		}
-		return Result{}, fmt.Errorf("read script.txt: %w", err)
-	}
-	script := strings.TrimSpace(string(scriptBytes))
-	if script == "" {
-		return Result{}, errors.New("script.txt is empty")
 	}
 
 	audioPath := strings.TrimSpace(config.AudioPath)
@@ -77,6 +144,36 @@ func GenerateFromFiles(config Config) (Result, error) {
 		return Result{}, fmt.Errorf("inspect voice.mp3: %w", err)
 	}
 
+	script, err := readOptionalScript(config.ScriptPath)
+	if err != nil {
+		logger.Warn("script fallback is unavailable", "script_path", config.ScriptPath, "error", err)
+	}
+
+	if transcriber := transcriberFromConfig(config, logger); transcriber != nil {
+		transcript, err := transcriber.Transcribe(ctx, audioPath, script)
+		if err != nil {
+			return Result{}, fmt.Errorf("transcribe voice.mp3: %w", err)
+		}
+
+		srt, chunks, duration, err := GenerateSRTFromSegments(transcript.Segments)
+		if err == nil {
+			if err := writeSRT(outputPath, srt); err != nil {
+				return Result{}, err
+			}
+			logger.Info("generated captions from transcription", "output_file", outputPath, "chunks", chunks, "duration", duration.String())
+			return Result{Path: outputPath, Status: StatusGenerated, Chunks: chunks, Duration: duration, Source: "transcription"}, nil
+		}
+		logger.Warn("transcription did not include usable timestamp segments; falling back to script timing", "error", err)
+
+		if strings.TrimSpace(script) == "" {
+			script = transcript.Text
+		}
+	}
+
+	if strings.TrimSpace(script) == "" {
+		return Result{}, errors.New("script.txt fallback is empty and transcription did not return timestamp segments")
+	}
+
 	duration, err := MP3Duration(audioPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("estimate voice.mp3 duration: %w", err)
@@ -87,16 +184,12 @@ func GenerateFromFiles(config Config) (Result, error) {
 		return Result{}, err
 	}
 
-	dir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return Result{}, fmt.Errorf("create captions output directory %s: %w", dir, err)
-	}
-	if err := os.WriteFile(outputPath, []byte(srt), 0o644); err != nil {
-		return Result{}, fmt.Errorf("write captions.srt: %w", err)
+	if err := writeSRT(outputPath, srt); err != nil {
+		return Result{}, err
 	}
 
-	logger.Info("generated captions", "output_file", outputPath, "chunks", chunks, "duration", duration.String())
-	return Result{Path: outputPath, Status: StatusGenerated, Chunks: chunks, Duration: duration}, nil
+	logger.Info("generated captions from script fallback", "output_file", outputPath, "chunks", chunks, "duration", duration.String())
+	return Result{Path: outputPath, Status: StatusGenerated, Chunks: chunks, Duration: duration, Source: "script_fallback"}, nil
 }
 
 func GenerateSRT(script string, audioDuration time.Duration) (string, int, error) {
@@ -146,6 +239,31 @@ func GenerateSRT(script string, audioDuration time.Duration) (string, int, error
 	return b.String(), len(chunks), nil
 }
 
+func GenerateSRTFromSegments(segments []Segment) (string, int, time.Duration, error) {
+	captions := CaptionsFromSegments(segments)
+	if len(captions) == 0 {
+		return "", 0, 0, errors.New("transcription did not return timestamp segments")
+	}
+
+	var b strings.Builder
+	for i, caption := range captions {
+		fmt.Fprintf(&b, "%d\n%s --> %s\n%s\n\n", i+1, formatTimestamp(caption.Start), formatTimestamp(caption.End), caption.Text)
+	}
+	return b.String(), len(captions), captions[len(captions)-1].End, nil
+}
+
+func CaptionsFromSegments(segments []Segment) []Caption {
+	var captions []Caption
+	for _, segment := range segments {
+		segment.Text = normalizeWhitespace(segment.Text)
+		if segment.Text == "" || segment.End <= segment.Start {
+			continue
+		}
+		captions = append(captions, splitSegment(segment)...)
+	}
+	return captions
+}
+
 func SplitScript(script string) []string {
 	words := strings.Fields(normalizeWhitespace(script))
 	if len(words) == 0 {
@@ -172,6 +290,46 @@ func SplitScript(script string) []string {
 		chunks = append(chunks, strings.Join(current, " "))
 	}
 	return chunks
+}
+
+func splitSegment(segment Segment) []Caption {
+	chunks := SplitScript(segment.Text)
+	if len(chunks) == 0 {
+		return nil
+	}
+	if len(chunks) == 1 {
+		return []Caption{{Text: chunks[0], Start: segment.Start, End: segment.End}}
+	}
+
+	weights := make([]int, len(chunks))
+	totalWeight := 0
+	for i, chunk := range chunks {
+		weight := len([]rune(chunk))
+		if weight < 1 {
+			weight = 1
+		}
+		weights[i] = weight
+		totalWeight += weight
+	}
+
+	captions := make([]Caption, 0, len(chunks))
+	start := segment.Start
+	var targetEnd float64
+	segmentDuration := float64(segment.End - segment.Start)
+	for i, chunk := range chunks {
+		if i == len(chunks)-1 {
+			targetEnd = segmentDuration
+		} else {
+			targetEnd += segmentDuration * float64(weights[i]) / float64(totalWeight)
+		}
+		end := segment.Start + time.Duration(math.Round(targetEnd))
+		if end <= start {
+			end = start + time.Millisecond
+		}
+		captions = append(captions, Caption{Text: chunk, Start: start, End: end})
+		start = end
+	}
+	return captions
 }
 
 func MP3Duration(path string) (time.Duration, error) {
@@ -364,6 +522,53 @@ func formatTimestamp(duration time.Duration) string {
 
 func normalizeWhitespace(value string) string {
 	return strings.Join(strings.Fields(value), " ")
+}
+
+func readOptionalScript(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", errors.New("script.txt path is empty")
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("script.txt is missing at %s", path)
+		}
+		return "", fmt.Errorf("read script.txt: %w", err)
+	}
+	return strings.TrimSpace(string(content)), nil
+}
+
+func writeSRT(path string, content string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create captions output directory %s: %w", dir, err)
+	}
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(content)+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write captions.srt: %w", err)
+	}
+	return nil
+}
+
+func transcriberFromConfig(config Config, logger *slog.Logger) Transcriber {
+	if config.Transcriber != nil {
+		return config.Transcriber
+	}
+	if strings.TrimSpace(config.OpenAIAPIKey) == "" {
+		return nil
+	}
+	return NewOpenAITranscriber(config.OpenAIAPIKey, config.OpenAITranscriptionModel, logger)
+}
+
+func secondsToDuration(seconds float64) time.Duration {
+	return time.Duration(math.Round(seconds * float64(time.Second)))
+}
+
+func valueOrDefault(value string, fallback string) string {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		return trimmed
+	}
+	return fallback
 }
 
 func fileExists(path string) bool {

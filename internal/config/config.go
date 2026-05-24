@@ -12,21 +12,23 @@ import (
 )
 
 const (
-	defaultModel      = "gpt-5.4-mini"
-	defaultTTSModel   = "gpt-4o-mini-tts"
-	defaultTTSVoice   = "marin"
-	defaultImageModel = "gpt-image-1"
-	defaultImageSize  = "1024x1536"
+	defaultModel              = "gpt-5.4-mini"
+	defaultTTSModel           = "gpt-4o-mini-tts"
+	defaultTTSVoice           = "marin"
+	defaultImageModel         = "gpt-image-1"
+	defaultImageSize          = "1024x1536"
+	defaultTranscriptionModel = "gpt-4o-mini-transcribe"
 )
 
 type Config struct {
-	OpenAIAPIKey       string
-	OpenAIModel        string
-	OpenAITTSModel     string
-	OpenAITTSVoice     string
-	OpenAIImageModel   string
-	OpenAIImageSize    string
-	OpenAIImageQuality string
+	OpenAIAPIKey             string
+	OpenAIModel              string
+	OpenAITTSModel           string
+	OpenAITTSVoice           string
+	OpenAIImageModel         string
+	OpenAIImageSize          string
+	OpenAIImageQuality       string
+	OpenAITranscriptionModel string
 }
 
 func Load(logger *slog.Logger) (Config, error) {
@@ -39,13 +41,14 @@ func Load(logger *slog.Logger) (Config, error) {
 	}
 
 	return Config{
-		OpenAIAPIKey:       strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
-		OpenAIModel:        envOrDefault("OPENAI_MODEL", defaultModel),
-		OpenAITTSModel:     envOrDefault("OPENAI_TTS_MODEL", defaultTTSModel),
-		OpenAITTSVoice:     envOrDefault("OPENAI_TTS_VOICE", defaultTTSVoice),
-		OpenAIImageModel:   envOrDefault("OPENAI_IMAGE_MODEL", defaultImageModel),
-		OpenAIImageSize:    envOrDefault("OPENAI_IMAGE_SIZE", defaultImageSize),
-		OpenAIImageQuality: imagegen.QualityFromEnv(),
+		OpenAIAPIKey:             strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		OpenAIModel:              envOrDefault("OPENAI_MODEL", defaultModel),
+		OpenAITTSModel:           envOrDefault("OPENAI_TTS_MODEL", defaultTTSModel),
+		OpenAITTSVoice:           envOrDefault("OPENAI_TTS_VOICE", defaultTTSVoice),
+		OpenAIImageModel:         envOrDefault("OPENAI_IMAGE_MODEL", defaultImageModel),
+		OpenAIImageSize:          envOrDefault("OPENAI_IMAGE_SIZE", defaultImageSize),
+		OpenAIImageQuality:       imagegen.QualityFromEnv(),
+		OpenAITranscriptionModel: envOrDefault("OPENAI_TRANSCRIPTION_MODEL", defaultTranscriptionModel),
 	}, nil
 }
 
@@ -84,6 +87,11 @@ func (c Config) Validate(logger *slog.Logger) error {
 	}
 	if _, err := imagegen.ValidateQuality(c.OpenAIImageQuality); err != nil {
 		logger.Error("invalid OpenAI image quality", "env", imagegen.EnvImageQuality, "error", err)
+		return err
+	}
+	if c.OpenAITranscriptionModel == "" {
+		err := fmt.Errorf("OPENAI_TRANSCRIPTION_MODEL is empty; set it in .env or leave it unset to use the default")
+		logger.Error("missing OpenAI transcription model", "env", "OPENAI_TRANSCRIPTION_MODEL", "error", err)
 		return err
 	}
 	return nil
