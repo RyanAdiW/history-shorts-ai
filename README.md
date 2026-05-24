@@ -11,12 +11,13 @@ OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-5.4-mini
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 OPENAI_TTS_VOICE=marin
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
 OPENAI_IMAGE_MODEL=gpt-image-1
 OPENAI_IMAGE_SIZE=1024x1536
 OPENAI_IMAGE_QUALITY=low
 ```
 
-`OPENAI_MODEL`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_SIZE`, and `OPENAI_IMAGE_QUALITY` are optional. The CLI defaults to `gpt-5.4-mini` for text generation, `gpt-4o-mini-tts` with the `marin` voice for TTS, and `gpt-image-1` at `1024x1536` with `low` quality for images.
+`OPENAI_MODEL`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`, `OPENAI_TRANSCRIPTION_MODEL`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_SIZE`, and `OPENAI_IMAGE_QUALITY` are optional. The CLI defaults to `gpt-5.4-mini` for text generation, `gpt-4o-mini-tts` with the `marin` voice for TTS, `gpt-4o-mini-transcribe` for synced captions, and `gpt-image-1` at `1024x1536` with `low` quality for images.
 
 Video rendering requires `ffmpeg` and `ffprobe` to be installed and available on `PATH`.
 
@@ -65,7 +66,7 @@ Script
 
 By default, rerunning the same topic reuses existing output files and only generates missing files. Pass `--force` to regenerate and overwrite existing files.
 
-`--captions` creates `captions.srt` from `script.txt` and the estimated duration of `voice.mp3`. If `captions.srt` already exists, it is reused unless `--force` is passed.
+`--captions` creates `captions.srt` by transcribing `voice.mp3` and using the returned timestamp segments. `script.txt` is used only as a transcription prompt/fallback source if timestamp segments are unavailable. If `captions.srt` already exists, it is reused unless `--force` is passed; run captions with `--force` whenever `voice.mp3` changes.
 
 `--render` creates `final.mp4` from `images/*.png`, `voice.mp3`, and `captions.srt` using FFmpeg. It renders a 1080x1920, 30 fps H.264/AAC MP4, normalizes the voiceover volume, and reuses an existing `final.mp4` unless `--force` is passed. If `voice.mp3` changes, regenerate captions and the video with `--force` so `captions.srt` uses the current audio timing.
 

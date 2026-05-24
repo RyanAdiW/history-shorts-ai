@@ -16,23 +16,24 @@ import (
 )
 
 type Config struct {
-	Topic              string
-	PromptDir          string
-	OutputDir          string
-	OpenAIAPIKey       string
-	OpenAIModel        string
-	OpenAITTSModel     string
-	OpenAITTSVoice     string
-	OpenAIImageModel   string
-	OpenAIImageSize    string
-	OpenAIImageQuality string
-	GenerateVoice      bool
-	GenerateImages     bool
-	GenerateCaptions   bool
-	GenerateRender     bool
-	Force              bool
-	Logger             *slog.Logger
-	Progress           func(step string)
+	Topic                    string
+	PromptDir                string
+	OutputDir                string
+	OpenAIAPIKey             string
+	OpenAIModel              string
+	OpenAITTSModel           string
+	OpenAITTSVoice           string
+	OpenAIImageModel         string
+	OpenAIImageSize          string
+	OpenAIImageQuality       string
+	OpenAITranscriptionModel string
+	GenerateVoice            bool
+	GenerateImages           bool
+	GenerateCaptions         bool
+	GenerateRender           bool
+	Force                    bool
+	Logger                   *slog.Logger
+	Progress                 func(step string)
 }
 
 type state struct {
@@ -109,7 +110,7 @@ func Generate(ctx context.Context, config Config) (string, error) {
 	if err := generateVoiceover(ctx, config, writer, logger); err != nil {
 		return "", err
 	}
-	if err := generateCaptions(config, writer, logger); err != nil {
+	if err := generateCaptions(ctx, config, writer, logger); err != nil {
 		return "", err
 	}
 	if err := renderVideo(ctx, config, writer, logger); err != nil {
@@ -141,7 +142,7 @@ func generateVoiceover(ctx context.Context, config Config, writer output.Writer,
 	return nil
 }
 
-func generateCaptions(config Config, writer output.Writer, logger *slog.Logger) error {
+func generateCaptions(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
 	if !config.GenerateCaptions {
 		logger.Info("skipped captions", "reason", "captions flag disabled")
 		return nil
@@ -150,12 +151,14 @@ func generateCaptions(config Config, writer output.Writer, logger *slog.Logger) 
 	if config.Force || !writer.Exists("captions.srt") {
 		reportProgress(config, "captions")
 	}
-	if _, err := caption.GenerateFromFiles(caption.Config{
-		ScriptPath: writer.Path("script.txt"),
-		AudioPath:  writer.Path("voice.mp3"),
-		OutputPath: writer.Path("captions.srt"),
-		Force:      config.Force,
-		Logger:     logger,
+	if _, err := caption.GenerateFromFiles(ctx, caption.Config{
+		ScriptPath:               writer.Path("script.txt"),
+		AudioPath:                writer.Path("voice.mp3"),
+		OutputPath:               writer.Path("captions.srt"),
+		OpenAIAPIKey:             config.OpenAIAPIKey,
+		OpenAITranscriptionModel: config.OpenAITranscriptionModel,
+		Force:                    config.Force,
+		Logger:                   logger,
 	}); err != nil {
 		wrapped := fmt.Errorf("generate captions: %w", err)
 		logger.Error("failed to generate captions", "error", wrapped)
