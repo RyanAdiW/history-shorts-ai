@@ -18,6 +18,8 @@ OPENAI_IMAGE_QUALITY=low
 
 `OPENAI_MODEL`, `OPENAI_TTS_MODEL`, `OPENAI_TTS_VOICE`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_SIZE`, and `OPENAI_IMAGE_QUALITY` are optional. The CLI defaults to `gpt-5.4-mini` for text generation, `gpt-4o-mini-tts` with the `marin` voice for TTS, and `gpt-image-1` at `1024x1536` with `low` quality for images.
 
+Video rendering requires `ffmpeg` and `ffprobe` to be installed and available on `PATH`.
+
 ## Generate
 
 ```bash
@@ -25,7 +27,8 @@ go run cmd/generate/main.go \
   --topic "Why Did Alexander the Great Die at Just 32?" \
   --voice \
   --images \
-  --captions
+  --captions \
+  --render
 ```
 
 The generator writes:
@@ -42,7 +45,8 @@ output/alexander-the-great/
 |   |-- 02.png
 |   `-- 03.png
 |-- voice.mp3
-`-- captions.srt
+|-- captions.srt
+`-- final.mp4
 ```
 
 Generation order:
@@ -63,6 +67,8 @@ By default, rerunning the same topic reuses existing output files and only gener
 
 `--captions` creates `captions.srt` from `script.txt` and the estimated duration of `voice.mp3`. If `captions.srt` already exists, it is reused unless `--force` is passed.
 
+`--render` creates `final.mp4` from `images/*.png`, `voice.mp3`, and `captions.srt` using FFmpeg. It renders a 1080x1920, 30 fps H.264/AAC MP4 and reuses an existing `final.mp4` unless `--force` is passed.
+
 Optional flags:
 
 ```bash
@@ -74,6 +80,7 @@ go run cmd/generate/main.go \
   --voice \
   --images \
   --captions \
+  --render \
   --force
 ```
 
@@ -84,6 +91,7 @@ make generate TOPIC="Why Did Alexander the Great Die at Just 32?"
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" VOICE=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" IMAGES=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" CAPTIONS=1
+make generate TOPIC="Why Did Alexander the Great Die at Just 32?" RENDER=1
 make generate TOPIC="Why Did Alexander the Great Die at Just 32?" FORCE=1
 make test
 make fmt

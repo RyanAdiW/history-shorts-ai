@@ -10,6 +10,7 @@ import (
 	"history-shorts-ai/internal/imagegen"
 	"history-shorts-ai/internal/output"
 	"history-shorts-ai/internal/prompt"
+	"history-shorts-ai/internal/render"
 	"history-shorts-ai/internal/tts"
 	"history-shorts-ai/internal/utils"
 )
@@ -28,6 +29,7 @@ type Config struct {
 	GenerateVoice      bool
 	GenerateImages     bool
 	GenerateCaptions   bool
+	GenerateRender     bool
 	Force              bool
 	Logger             *slog.Logger
 	Progress           func(step string)
@@ -110,6 +112,9 @@ func Generate(ctx context.Context, config Config) (string, error) {
 	if err := generateCaptions(config, writer, logger); err != nil {
 		return "", err
 	}
+	if err := renderVideo(ctx, config, writer, logger); err != nil {
+		return "", err
+	}
 
 	return writer.Dir(), nil
 }
@@ -154,6 +159,30 @@ func generateCaptions(config Config, writer output.Writer, logger *slog.Logger) 
 	}); err != nil {
 		wrapped := fmt.Errorf("generate captions: %w", err)
 		logger.Error("failed to generate captions", "error", wrapped)
+		return wrapped
+	}
+	return nil
+}
+
+func renderVideo(ctx context.Context, config Config, writer output.Writer, logger *slog.Logger) error {
+	if !config.GenerateRender {
+		logger.Info("skipped video render", "reason", "render flag disabled")
+		return nil
+	}
+
+	if config.Force || !writer.Exists("final.mp4") {
+		reportProgress(config, "video render")
+	}
+	if _, err := render.RenderFromFiles(ctx, render.Config{
+		ImagesDir:    writer.Path("images"),
+		AudioPath:    writer.Path("voice.mp3"),
+		CaptionsPath: writer.Path("captions.srt"),
+		OutputPath:   writer.Path("final.mp4"),
+		Force:        config.Force,
+		Logger:       logger,
+	}); err != nil {
+		wrapped := fmt.Errorf("render video: %w", err)
+		logger.Error("failed to render video", "error", wrapped)
 		return wrapped
 	}
 	return nil

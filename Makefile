@@ -6,6 +6,7 @@ OUTPUT ?= output
 VOICE ?=
 IMAGES ?=
 CAPTIONS ?=
+RENDER ?=
 FORCE ?=
 
 GENERATE_ARGS := --topic "$(TOPIC)" --prompts "$(PROMPTS)" --output "$(OUTPUT)"
@@ -21,6 +22,9 @@ endif
 ifneq ($(strip $(CAPTIONS)),)
 GENERATE_ARGS += --captions
 endif
+ifneq ($(strip $(RENDER)),)
+GENERATE_ARGS += --render
+endif
 ifneq ($(strip $(FORCE)),)
 GENERATE_ARGS += --force
 endif
@@ -33,6 +37,7 @@ help:
 	@echo "  make generate TOPIC=\"Why Did Alexander the Great Die at Just 32?\" VOICE=1"
 	@echo "  make generate TOPIC=\"Why Did Alexander the Great Die at Just 32?\" IMAGES=1"
 	@echo "  make generate TOPIC=\"Why Did Alexander the Great Die at Just 32?\" CAPTIONS=1"
+	@echo "  make generate TOPIC=\"Why Did Alexander the Great Die at Just 32?\" RENDER=1"
 	@echo "  make generate TOPIC=\"Why Did Alexander the Great Die at Just 32?\" FORCE=1"
 	@echo "  make test"
 	@echo "  make fmt"
